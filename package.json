@@ -1,0 +1,33 @@
+{
+  "name": "dc-agent",
+  "version": "1.0.0",
+  "description": "DC智能体 - 支持多模型的智能对话平台",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "start": "concurrently \"npm run backend:start\" \"npm run frontend:start\"",
+    "backend:dev": "cd backend && npm run dev",
+    "backend:start": "cd backend && npm start",
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:start": "cd frontend && npm run start",
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "test": "cd backend && npm test && cd ../frontend && npm test"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "ai",
+    "chatbot",
+    "openai",
+    "claude",
+    "agent"
+  ],
+  "author": "DC Team",
+  "license": "MIT"
+} 
