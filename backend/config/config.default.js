@@ -1,5 +1,8 @@
 /* eslint valid-jsdoc: "off" */
 
+// 加载环境变量
+require('dotenv').config();
+
 /**
  * @param {Egg.EggAppInfo} appInfo app info
  */

@@ -8,19 +8,27 @@ class ChatController extends Controller {
     
     try {
       // 验证请求参数
-      ctx.validate({
-        provider: { type: 'string', required: true },
-        model: { type: 'string', required: true },
-        message: { type: 'string', required: true },
-        history: { type: 'array', required: false },
-      });
-
-      const { provider, model, message, history = [] } = ctx.request.body;
+      // ctx.validate({
+      //   provider: { type: 'string', required: true },
+      //   model: { type: 'string', required: true },
+      //   message: { type: 'string', required: true },
+      //   history: { type: 'array', required: false },
+      // });
+      const { provider, model, message, history = '[]', previous_response_id } = ctx.request.body;
       const files = ctx.request.files || [];
+
+      // 解析history JSON字符串
+      let parsedHistory = [];
+      try {
+        parsedHistory = typeof history === 'string' ? JSON.parse(history) : history;
+      } catch (error) {
+        ctx.logger.error('Error parsing history JSON:', error);
+        parsedHistory = [];
+      }
 
       // 构建消息历史
       const messages = [
-        ...history,
+        ...parsedHistory,
         { role: 'user', content: message }
       ];
 
@@ -30,6 +38,7 @@ class ChatController extends Controller {
         model,
         messages,
         files,
+        previous_response_id, // 传递previous_response_id
       });
 
       ctx.body = result;

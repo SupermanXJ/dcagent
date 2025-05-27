@@ -7,15 +7,16 @@
     "declarations": true
   },
   "dependencies": {
-    "egg": "^3.17.5",
-    "egg-scripts": "2",
-    "egg-cors": "^2.2.3",
-    "egg-multipart": "^3.2.0",
-    "egg-validate": "^2.0.2",
-    "openai": "^4.20.1",
     "@anthropic-ai/sdk": "^0.24.3",
     "axios": "^1.6.0",
-    "form-data": "^4.0.0"
+    "dotenv": "^16.5.0",
+    "egg": "^3.17.5",
+    "egg-cors": "^2.2.3",
+    "egg-multipart": "^3.2.0",
+    "egg-scripts": "2",
+    "egg-validate": "^2.0.2",
+    "form-data": "^4.0.0",
+    "openai": "^4.20.1"
   },
   "devDependencies": {
     "egg-bin": "6",

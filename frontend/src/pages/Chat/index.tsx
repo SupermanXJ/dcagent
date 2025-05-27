@@ -21,6 +21,7 @@ import {
   UserOutlined,
   RobotOutlined,
   DeleteOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import { request } from '@umijs/max';
 import type { UploadFile } from 'antd/es/upload/interface';
@@ -33,6 +34,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  response_id?: string; // OpenAI响应ID，用于会话状态管理
 }
 
 interface Models {
@@ -49,6 +51,8 @@ const Chat: React.FC = () => {
   const [model, setModel] = useState('gpt-3.5-turbo');
   const [models, setModels] = useState<Models>({ openai: [], claude: [] });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   // 获取可用模型
   useEffect(() => {
@@ -67,7 +71,15 @@ const Chat: React.FC = () => {
 
   // 自动滚动到底部
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const timer = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end',
+        inline: 'nearest'
+      });
+    }, 100); // 小延迟确保DOM更新完成
+    
+    return () => clearTimeout(timer);
   }, [messages]);
 
   // 发送消息
@@ -92,10 +104,20 @@ const Chat: React.FC = () => {
       formData.append('provider', provider);
       formData.append('model', model);
       formData.append('message', inputValue);
-      formData.append('history', JSON.stringify(messages.map(msg => ({
+      
+      // 构建历史消息，包含response_id信息
+      const historyData = messages.map(msg => ({
         role: msg.role,
         content: msg.content,
-      }))));
+        ...(msg.response_id && { response_id: msg.response_id })
+      }));
+      formData.append('history', JSON.stringify(historyData));
+
+      // 获取最后一个助手消息的response_id作为previous_response_id
+      const lastAssistantMessage = messages.slice().reverse().find(msg => msg.role === 'assistant');
+      if (lastAssistantMessage?.response_id && provider === 'openai') {
+        formData.append('previous_response_id', lastAssistantMessage.response_id);
+      }
 
       // 添加文件
       fileList.forEach(file => {
@@ -114,6 +136,7 @@ const Chat: React.FC = () => {
           role: 'assistant',
           content: response.data.content,
           timestamp: Date.now(),
+          ...(response.data.response_id && { response_id: response.data.response_id })
         };
         setMessages(prev => [...prev, assistantMessage]);
         setFileList([]); // 清空文件列表
@@ -147,10 +170,33 @@ const Chat: React.FC = () => {
     }
   };
 
+  // 滚动到底部
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ 
+      behavior: 'smooth',
+      block: 'end',
+      inline: 'nearest'
+    });
+  };
+
+  // 监听滚动事件
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const element = e.currentTarget;
+    const isAtBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 10;
+    setShowScrollButton(!isAtBottom);
+  };
+
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden', // 防止整个页面出现滚动条
+      padding: '16px',
+      boxSizing: 'border-box'
+    }}>
       {/* 头部配置区 */}
-      <Card style={{ marginBottom: 16 }}>
+      <Card style={{ marginBottom: 16, flexShrink: 0 }}>
         <Row gutter={16} align="middle">
           <Col span={6}>
             <Title level={4} style={{ margin: 0 }}>DC智能体</Title>
@@ -185,9 +231,17 @@ const Chat: React.FC = () => {
             </Space>
           </Col>
           <Col span={6} style={{ textAlign: 'right' }}>
-            <Button onClick={handleClear} icon={<DeleteOutlined />}>
-              清空对话
-            </Button>
+            <Space>
+              {/* 会话状态指示器 */}
+              {messages.length > 0 && provider === 'openai' && (
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  🔗 会话状态已连接
+                </Text>
+              )}
+              <Button onClick={handleClear} icon={<DeleteOutlined />}>
+                清空对话
+              </Button>
+            </Space>
           </Col>
         </Row>
       </Card>
@@ -199,46 +253,112 @@ const Chat: React.FC = () => {
           marginBottom: 16, 
           overflow: 'hidden',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          minHeight: 0, // 确保flex布局正常工作
+          position: 'relative', // 为浮动按钮提供定位上下文
+        }}
+        bodyStyle={{ 
+          padding: 0, 
+          height: '100%', 
+          display: 'flex', 
+          flexDirection: 'column' 
         }}
       >
-        <div style={{ flex: 1, overflow: 'auto', padding: '0 16px' }}>
-          <List
-            dataSource={messages}
-            renderItem={(message) => (
-              <List.Item style={{ border: 'none', padding: '12px 0' }}>
-                <List.Item.Meta
-                  avatar={
-                    <Avatar 
-                      icon={message.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
-                      style={{ 
-                        backgroundColor: message.role === 'user' ? '#1890ff' : '#52c41a' 
-                      }}
-                    />
-                  }
-                  title={
-                    <Text strong>
-                      {message.role === 'user' ? '用户' : 'AI助手'}
-                      <Text type="secondary" style={{ marginLeft: 8, fontWeight: 'normal' }}>
-                        {new Date(message.timestamp).toLocaleTimeString()}
+        <div 
+          ref={messagesContainerRef}
+          onScroll={handleScroll}
+          style={{ 
+            flex: 1, 
+            overflow: 'auto', 
+            padding: '16px',
+            maxHeight: '100%',
+            scrollBehavior: 'smooth'
+          }}
+        >
+          {messages.length === 0 ? (
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center', 
+              height: '100%',
+              color: '#999'
+            }}>
+              暂无消息，开始对话吧！
+            </div>
+          ) : (
+            <List
+              dataSource={messages}
+              split={false}
+              renderItem={(message) => (
+                <List.Item 
+                  style={{ 
+                    border: 'none', 
+                    padding: '12px 0',
+                    marginBottom: '8px'
+                  }}
+                >
+                  <List.Item.Meta
+                    avatar={
+                      <Avatar 
+                        icon={message.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
+                        style={{ 
+                          backgroundColor: message.role === 'user' ? '#1890ff' : '#52c41a',
+                          flexShrink: 0
+                        }}
+                      />
+                    }
+                    title={
+                      <Text strong>
+                        {message.role === 'user' ? '用户' : 'AI助手'}
+                        <Text type="secondary" style={{ marginLeft: 8, fontWeight: 'normal' }}>
+                          {new Date(message.timestamp).toLocaleTimeString()}
+                          {message.response_id && provider === 'openai' && (
+                            <span style={{ marginLeft: 8, fontSize: '10px', opacity: 0.6 }}>
+                              ID: {message.response_id.slice(-8)}
+                            </span>
+                          )}
+                        </Text>
                       </Text>
-                    </Text>
-                  }
-                  description={
-                    <div style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>
-                      {message.content}
-                    </div>
-                  }
-                />
-              </List.Item>
-            )}
-          />
-          <div ref={messagesEndRef} />
+                    }
+                    description={
+                      <div style={{ 
+                        whiteSpace: 'pre-wrap', 
+                        marginTop: 8,
+                        wordBreak: 'break-word',
+                        lineHeight: '1.6'
+                      }}>
+                        {message.content}
+                      </div>
+                    }
+                  />
+                </List.Item>
+              )}
+            />
+          )}
+          <div ref={messagesEndRef} style={{ height: '1px' }} />
         </div>
+        
+        {/* 滚动到底部按钮 */}
+        {showScrollButton && (
+          <Button
+            type="primary"
+            shape="circle"
+            icon={<DownOutlined />}
+            onClick={scrollToBottom}
+            style={{
+              position: 'absolute',
+              bottom: '20px',
+              right: '20px',
+              zIndex: 1000,
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+            }}
+            title="滚动到底部"
+          />
+        )}
       </Card>
 
       {/* 输入区 */}
-      <Card>
+      <Card style={{ flexShrink: 0 }}>
         <Space.Compact style={{ width: '100%' }}>
           <Upload
             fileList={fileList}

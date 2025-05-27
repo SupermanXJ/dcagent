@@ -7,6 +7,7 @@
 - 🤖 支持多种AI模型（OpenAI、Claude）
 - 📁 支持文件上传和处理
 - 💬 有状态的对话体验
+- 🔗 智能会话状态管理（OpenAI Responses API）
 - 🎨 现代化的用户界面
 - ⚡ 实时响应
 
@@ -128,6 +129,17 @@ NODE_ENV=development
 3. 选择对应的模型
 4. 可以上传文件或直接输入消息
 5. 点击发送开始对话
+
+### 会话状态管理
+
+当使用OpenAI模型时，系统会自动使用OpenAI的Responses API来维持会话状态：
+
+- 🔗 **智能状态保持**: 通过`previous_response_id`自动维持对话连续性
+- 📝 **完整历史记忆**: AI能够记住整个对话历史，无需手动管理
+- ⚡ **自动降级**: 如果Responses API不可用，自动回退到传统Chat Completions API
+- 💰 **成本优化**: 利用OpenAI的缓存机制减少重复token消费
+
+在界面右上角会显示"🔗 会话状态已连接"指示器，表明当前正在使用会话状态管理功能。
 
 ## API接口
 
