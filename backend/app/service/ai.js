@@ -130,7 +130,7 @@ class AiService extends Service {
 
     const message = await this.anthropic.messages.create({
       model,
-      max_tokens: 2000,
+      // max_tokens: 2000,
       system: systemMessage ? systemMessage.content : undefined,
       messages: userMessages,
     });

@@ -12,5 +12,7 @@ export const layout = () => {
     menu: {
       locale: false,
     },
+    // 隐藏侧边栏菜单
+    menuRender: false,
   };
 };
