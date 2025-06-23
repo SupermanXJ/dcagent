@@ -3,6 +3,7 @@
 const { Service } = require('egg');
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 class AiService extends Service {
   constructor(ctx) {
@@ -22,6 +23,11 @@ class AiService extends Service {
         apiKey: this.config.ai.claude.apiKey,
       });
     }
+    
+    // 初始化Gemini客户端
+    if (this.config.ai.gemini.apiKey) {
+      this.genAI = new GoogleGenerativeAI(this.config.ai.gemini.apiKey);
+    }
   }
 
   async chat(options) {
@@ -32,6 +38,8 @@ class AiService extends Service {
         return await this.chatWithOpenAI(model, messages, files, previous_response_id);
       } else if (provider === 'claude') {
         return await this.chatWithClaude(model, messages, files);
+      } else if (provider === 'gemini') {
+        return await this.chatWithGemini(model, messages, files);
       } else {
         throw new Error(`Unsupported AI provider: ${provider}`);
       }
@@ -144,6 +152,83 @@ class AiService extends Service {
     };
   }
 
+  async chatWithGemini(model = 'gemini-2.5-pro', messages, files) {
+    if (!this.genAI) {
+      throw new Error('Gemini API key not configured');
+    }
+
+    try {
+      // 获取模型实例
+      const geminiModel = this.genAI.getGenerativeModel({ model });
+
+      // 处理文件内容
+      const processedMessages = await this.processMessagesWithFiles(messages, files);
+      
+      // 将消息格式转换为Gemini格式
+      const geminiMessages = this.convertMessagesToGeminiFormat(processedMessages);
+      
+      // 开始聊天会话
+      const chat = geminiModel.startChat({
+        history: geminiMessages.history,
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.8,
+          maxOutputTokens: 8192,
+        },
+      });
+
+      // 发送消息
+      const result = await chat.sendMessage(geminiMessages.prompt);
+      const response = await result.response;
+      
+      return {
+        success: true,
+        data: {
+          content: response.text(),
+          usage: {
+            prompt_tokens: response.usageMetadata?.promptTokenCount || 0,
+            completion_tokens: response.usageMetadata?.candidatesTokenCount || 0,
+            total_tokens: response.usageMetadata?.totalTokenCount || 0,
+          },
+          response_id: result.response.candidates[0]?.index || 'gemini-response',
+        },
+      };
+    } catch (error) {
+      this.logger.error('Gemini chat error:', error);
+      throw error;
+    }
+  }
+
+  convertMessagesToGeminiFormat(messages) {
+    const history = [];
+    let prompt = '';
+    
+    for (const message of messages) {
+      if (message.role === 'system') {
+        // 系统消息可以添加到第一个用户消息中
+        continue;
+      } else if (message.role === 'user') {
+        history.push({
+          role: 'user',
+          parts: [{ text: message.content }],
+        });
+      } else if (message.role === 'assistant') {
+        history.push({
+          role: 'model',
+          parts: [{ text: message.content }],
+        });
+      }
+    }
+    
+    // 获取最后一个用户消息作为当前prompt
+    if (history.length > 0 && history[history.length - 1].role === 'user') {
+      prompt = history.pop().parts[0].text;
+    }
+    
+    return { history, prompt };
+  }
+
   async processMessagesWithFiles(messages, files) {
     // 验证和格式化消息
     const validatedMessages = messages.map(msg => {
@@ -230,6 +315,18 @@ class AiService extends Service {
         { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet' },
         { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
         { value: 'claude-opus-4-0', label: 'Claude Opus 4 (别名)' },
+      ],
+      gemini: [
+        { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (最新最强)' },
+        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (最快性价比)' },
+        { value: 'gemini-2.5-flash-lite-preview-06-17', label: 'Gemini 2.5 Flash-Lite (预览)' },
+        { value: 'gemini-2.0-flash-001', label: 'Gemini 2.0 Flash (稳定版)' },
+        { value: 'gemini-2.0-flash-lite-001', label: 'Gemini 2.0 Flash-Lite (轻量版)' },
+        { value: 'gemini-1.5-pro-002', label: 'Gemini 1.5 Pro (002)' },
+        { value: 'gemini-1.5-flash-002', label: 'Gemini 1.5 Flash (002)' },
+        { value: 'gemini-1.5-flash-8b', label: 'Gemini 1.5 Flash-8B (小型)' },
+        { value: 'gemini-1.5-pro-001', label: 'Gemini 1.5 Pro (001)' },
+        { value: 'gemini-1.5-flash-001', label: 'Gemini 1.5 Flash (001)' },
       ],
     };
   }

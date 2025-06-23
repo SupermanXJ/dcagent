@@ -49,13 +49,14 @@ interface ChatSession {
   messages: Message[];
   createdAt: number;
   updatedAt: number;
-  provider: 'openai' | 'claude';
+  provider: 'openai' | 'claude' | 'gemini';
   model: string;
 }
 
 interface Models {
   openai: Array<{ value: string; label: string }>;
   claude: Array<{ value: string; label: string }>;
+  gemini: Array<{ value: string; label: string }>;
 }
 
 const Chat: React.FC = () => {
@@ -70,9 +71,9 @@ const Chat: React.FC = () => {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   
   // AI配置状态
-  const [provider, setProvider] = useState<'openai' | 'claude'>('openai');
+  const [provider, setProvider] = useState<'openai' | 'claude' | 'gemini'>('openai');
   const [model, setModel] = useState('gpt-4.1');
-  const [models, setModels] = useState<Models>({ openai: [], claude: [] });
+  const [models, setModels] = useState<Models>({ openai: [], claude: [], gemini: [] });
   
   // UI状态
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -320,7 +321,7 @@ const Chat: React.FC = () => {
   };
 
   // 切换提供商时更新模型
-  const handleProviderChange = (newProvider: 'openai' | 'claude') => {
+  const handleProviderChange = (newProvider: 'openai' | 'claude' | 'gemini') => {
     setProvider(newProvider);
     const availableModels = models[newProvider];
     if (availableModels.length > 0) {
@@ -328,6 +329,10 @@ const Chat: React.FC = () => {
       if (newProvider === 'openai') {
         const preferredModel = availableModels.find(m => m.value === 'gpt-4.1');
         setModel(preferredModel ? 'gpt-4.1' : availableModels[0].value);
+      } else if (newProvider === 'gemini') {
+        // 对于Gemini，优先选择最新的2.5 Pro模型
+        const preferredModel = availableModels.find(m => m.value === 'gemini-2.5-pro');
+        setModel(preferredModel ? 'gemini-2.5-pro' : availableModels[0].value);
       } else {
         setModel(availableModels[0].value);
       }
@@ -499,16 +504,17 @@ const Chat: React.FC = () => {
                 >
                   <Option value="openai">OpenAI</Option>
                   <Option value="claude">Claude</Option>
+                  <Option value="gemini">Gemini</Option>
                 </Select>
               </Space>
             </Col>
             <Col span={6}>
-              <Space>
-                <Text>模型:</Text>
+              <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Text style={{ flexShrink: 0 }}>模型:</Text>
                 <Select
                   value={model}
                   onChange={setModel}
-                  style={{ minWidth: 200, width: 'auto' }}
+                  style={{ flex: 1, width: '100%' }}
                 >
                   {models[provider]?.map(m => (
                     <Option key={m.value} value={m.value}>
@@ -516,12 +522,12 @@ const Chat: React.FC = () => {
                     </Option>
                   ))}
                 </Select>
-              </Space>
+              </div>
             </Col>
             <Col span={6} style={{ textAlign: 'right' }}>
               <Space>
                 {/* 会话状态指示器 */}
-                {messages.length > 0 && provider === 'openai' && (
+                {messages.length > 0 && (provider === 'openai' || provider === 'gemini') && (
                   <Text type="secondary" style={{ fontSize: '12px' }}>
                     🔗 会话状态已连接
                   </Text>

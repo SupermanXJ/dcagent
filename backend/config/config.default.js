@@ -48,6 +48,10 @@ module.exports = appInfo => {
     claude: {
       apiKey: process.env.CLAUDE_API_KEY || '',
     },
+    gemini: {
+      apiKey: process.env.GEMINI_API_KEY || '',
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta',
+    },
   };
 
   // add your user config here
