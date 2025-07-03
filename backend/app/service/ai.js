@@ -4,6 +4,7 @@ const { Service } = require('egg');
 const OpenAI = require('openai');
 const Anthropic = require('@anthropic-ai/sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { ZhipuAI } = require('zhipuai-sdk-nodejs-v4');
 
 class AiService extends Service {
   constructor(ctx) {
@@ -28,6 +29,13 @@ class AiService extends Service {
     if (this.config.ai.gemini.apiKey) {
       this.genAI = new GoogleGenerativeAI(this.config.ai.gemini.apiKey);
     }
+    
+    // 初始化智谱AI客户端
+    if (this.config.ai.zhipu.apiKey) {
+      this.zhipuAI = new ZhipuAI({
+        apiKey: this.config.ai.zhipu.apiKey,
+      });
+    }
   }
 
   async chat(options) {
@@ -40,6 +48,8 @@ class AiService extends Service {
         return await this.chatWithClaude(model, messages, files);
       } else if (provider === 'gemini') {
         return await this.chatWithGemini(model, messages, files);
+      } else if (provider === 'zhipu') {
+        return await this.chatWithZhipu(model, messages, files);
       } else {
         throw new Error(`Unsupported AI provider: ${provider}`);
       }
@@ -200,6 +210,37 @@ class AiService extends Service {
     }
   }
 
+  async chatWithZhipu(model = 'glm-4-32b-0414', messages, files) {
+    if (!this.zhipuAI) {
+      throw new Error('智谱AI API key not configured');
+    }
+
+    try {
+      // 处理文件内容
+      const processedMessages = await this.processMessagesWithFiles(messages, files);
+      
+      // 智谱AI使用 createCompletions 方法
+      const response = await this.zhipuAI.createCompletions({
+        model,
+        messages: processedMessages,
+        temperature: 0.7,
+        stream: false,
+      });
+
+      return {
+        success: true,
+        data: {
+          content: response.choices[0].message.content,
+          usage: response.usage,
+          response_id: response.id,
+        },
+      };
+    } catch (error) {
+      this.logger.error('智谱AI chat error:', error);
+      throw error;
+    }
+  }
+
   convertMessagesToGeminiFormat(messages) {
     const history = [];
     let prompt = '';
@@ -327,6 +368,18 @@ class AiService extends Service {
         { value: 'gemini-1.5-flash-8b', label: 'Gemini 1.5 Flash-8B (小型)' },
         { value: 'gemini-1.5-pro-001', label: 'Gemini 1.5 Pro (001)' },
         { value: 'gemini-1.5-flash-001', label: 'Gemini 1.5 Flash (001)' },
+      ],
+      zhipu: [
+        { value: 'glm-4-32b-0414', label: 'GLM-4-32B-0414 (最新32B对话模型)' },
+        { value: 'glm-z1-32b-0414', label: 'GLM-Z1-32B-0414 (32B推理模型)' },
+        { value: 'glm-z1-rumination-32b-0414', label: 'GLM-Z1-Rumination-32B-0414 (深度思考模型)' },
+        { value: 'glm-4-9b-0414', label: 'GLM-4-9B-0414 (9B对话模型)' },
+        { value: 'glm-z1-9b-0414', label: 'GLM-Z1-9B-0414 (9B推理模型)' },
+        { value: 'glm-4-plus', label: 'GLM-4-Plus (高性能商业版)' },
+        { value: 'glm-4-air', label: 'GLM-4-Air (轻量商业版)' },
+        { value: 'glm-4-flash', label: 'GLM-4-Flash (免费高速版)' },
+        { value: 'glm-4-long', label: 'GLM-4-Long (长上下文版)' },
+        { value: 'glm-4v', label: 'GLM-4V (多模态版本)' },
       ],
     };
   }

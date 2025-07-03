@@ -52,6 +52,10 @@ module.exports = appInfo => {
       apiKey: process.env.GEMINI_API_KEY || '',
       baseURL: 'https://generativelanguage.googleapis.com/v1beta',
     },
+    zhipu: {
+      apiKey: process.env.ZHIPU_API_KEY || '',
+      baseURL: 'https://open.bigmodel.cn/api/paas/v4',
+    },
   };
 
   // add your user config here
