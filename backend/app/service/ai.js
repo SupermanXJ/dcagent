@@ -210,7 +210,7 @@ class AiService extends Service {
     }
   }
 
-  async chatWithZhipu(model = 'glm-4-32b-0414', messages, files) {
+  async chatWithZhipu(model = 'glm-4', messages, files) {
     if (!this.zhipuAI) {
       throw new Error('智谱AI API key not configured');
     }
@@ -370,16 +370,16 @@ class AiService extends Service {
         { value: 'gemini-1.5-flash-001', label: 'Gemini 1.5 Flash (001)' },
       ],
       zhipu: [
-        { value: 'glm-4-32b-0414', label: 'GLM-4-32B-0414 (最新32B对话模型)' },
-        { value: 'glm-z1-32b-0414', label: 'GLM-Z1-32B-0414 (32B推理模型)' },
-        { value: 'glm-z1-rumination-32b-0414', label: 'GLM-Z1-Rumination-32B-0414 (深度思考模型)' },
-        { value: 'glm-4-9b-0414', label: 'GLM-4-9B-0414 (9B对话模型)' },
-        { value: 'glm-z1-9b-0414', label: 'GLM-Z1-9B-0414 (9B推理模型)' },
+        { value: 'glm-4', label: 'GLM-4 (基础对话模型)' },
         { value: 'glm-4-plus', label: 'GLM-4-Plus (高性能商业版)' },
         { value: 'glm-4-air', label: 'GLM-4-Air (轻量商业版)' },
         { value: 'glm-4-flash', label: 'GLM-4-Flash (免费高速版)' },
         { value: 'glm-4-long', label: 'GLM-4-Long (长上下文版)' },
         { value: 'glm-4v', label: 'GLM-4V (多模态版本)' },
+        { value: 'glm-4-0520', label: 'GLM-4-0520 (稳定版)' },
+        { value: 'glm-4-airx', label: 'GLM-4-AirX (极速版)' },
+        { value: 'charglm-3', label: 'CharGLM-3 (角色扮演)' },
+        { value: 'emohaa', label: 'Emohaa (情感理解)' },
       ],
     };
   }

@@ -335,9 +335,9 @@ const Chat: React.FC = () => {
         const preferredModel = availableModels.find(m => m.value === 'gemini-2.5-pro');
         setModel(preferredModel ? 'gemini-2.5-pro' : availableModels[0].value);
       } else if (newProvider === 'zhipu') {
-        // 对于智谱AI，优先选择最新的32B模型
-        const preferredModel = availableModels.find(m => m.value === 'glm-4-32b-0414');
-        setModel(preferredModel ? 'glm-4-32b-0414' : availableModels[0].value);
+        // 对于智谱AI，优先选择GLM-4基础模型
+        const preferredModel = availableModels.find(m => m.value === 'glm-4');
+        setModel(preferredModel ? 'glm-4' : availableModels[0].value);
       } else {
         setModel(availableModels[0].value);
       }

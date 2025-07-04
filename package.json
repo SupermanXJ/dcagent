@@ -8,15 +8,15 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
-    "start": "concurrently \"npm run backend:start\" \"npm run frontend:start\"",
-    "backend:dev": "cd backend && npm run dev",
-    "backend:start": "cd backend && npm start",
-    "frontend:dev": "cd frontend && npm run dev",
-    "frontend:start": "cd frontend && npm run start",
-    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
-    "build": "cd frontend && npm run build",
-    "test": "cd backend && npm test && cd ../frontend && npm test"
+    "dev": "concurrently \"pnpm run backend:dev\" \"pnpm run frontend:dev\"",
+    "start": "concurrently \"pnpm run backend:start\" \"pnpm run frontend:start\"",
+    "backend:dev": "cd backend && pnpm run dev",
+    "backend:start": "cd backend && pnpm start",
+    "frontend:dev": "cd frontend && pnpm run dev",
+    "frontend:start": "cd frontend && pnpm run start",
+    "install:all": "pnpm install && cd backend && pnpm install && cd ../frontend && pnpm install",
+    "build": "cd frontend && pnpm run build",
+    "test": "cd backend && pnpm test && cd ../frontend && pnpm test"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

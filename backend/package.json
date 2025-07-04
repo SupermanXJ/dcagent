@@ -33,11 +33,11 @@
     "start": "egg-scripts start --daemon --title=egg-server-backend",
     "stop": "egg-scripts stop --title=egg-server-backend",
     "dev": "egg-bin dev",
-    "test": "npm run lint -- --fix && npm run test:local",
+    "test": "pnpm run lint -- --fix && pnpm run test:local",
     "test:local": "egg-bin test",
     "cov": "egg-bin cov",
     "lint": "eslint .",
-    "ci": "npm run lint && npm run cov"
+    "ci": "pnpm run lint && pnpm run cov"
   },
   "repository": {
     "type": "git",
