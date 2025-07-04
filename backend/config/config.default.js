@@ -56,6 +56,10 @@ module.exports = appInfo => {
       apiKey: process.env.ZHIPU_API_KEY || '',
       baseURL: 'https://open.bigmodel.cn/api/paas/v4',
     },
+    qwen: {
+      apiKey: process.env.DASHSCOPE_API_KEY || '',
+      baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    },
   };
 
   // add your user config here

@@ -36,6 +36,15 @@ class AiService extends Service {
         apiKey: this.config.ai.zhipu.apiKey,
       });
     }
+    
+    // 初始化通义千问客户端 - 使用OpenAI兼容模式
+    if (this.config.ai.qwen.apiKey) {
+      this.qwenOpenAI = new OpenAI({
+        apiKey: this.config.ai.qwen.apiKey,
+        baseURL: this.config.ai.qwen.baseURL,
+      });
+      this.logger.info('Qwen client initialized successfully');
+    }
   }
 
   async chat(options) {
@@ -50,6 +59,8 @@ class AiService extends Service {
         return await this.chatWithGemini(model, messages, files);
       } else if (provider === 'zhipu') {
         return await this.chatWithZhipu(model, messages, files);
+      } else if (provider === 'qwen') {
+        return await this.chatWithQwen(model, messages, files);
       } else {
         throw new Error(`Unsupported AI provider: ${provider}`);
       }
@@ -241,6 +252,37 @@ class AiService extends Service {
     }
   }
 
+  async chatWithQwen(model = 'qwen-max', messages, files) {
+    if (!this.qwenOpenAI) {
+      throw new Error('通义千问 API key not configured');
+    }
+
+    try {
+      // 处理文件内容
+      const processedMessages = await this.processMessagesWithFiles(messages, files);
+      
+      // 使用OpenAI兼容模式调用通义千问
+      const completion = await this.qwenOpenAI.chat.completions.create({
+        model,
+        messages: processedMessages,
+        temperature: 0.7,
+        stream: false,
+      });
+
+      return {
+        success: true,
+        data: {
+          content: completion.choices[0].message.content,
+          usage: completion.usage,
+          response_id: completion.id,
+        },
+      };
+    } catch (error) {
+      this.logger.error('通义千问 chat error:', error);
+      throw error;
+    }
+  }
+
   convertMessagesToGeminiFormat(messages) {
     const history = [];
     let prompt = '';
@@ -380,6 +422,18 @@ class AiService extends Service {
         { value: 'glm-4-airx', label: 'GLM-4-AirX (极速版)' },
         { value: 'charglm-3', label: 'CharGLM-3 (角色扮演)' },
         { value: 'emohaa', label: 'Emohaa (情感理解)' },
+      ],
+      qwen: [
+        { value: 'qwen3-235b-a22b', label: 'Qwen3-235B-A22B (最新旗舰版)' },
+        { value: 'qwen3-32b', label: 'Qwen3-32B (中型高效)' },
+        { value: 'qwen3-14b', label: 'Qwen3-14B (小型快速)' },
+        { value: 'qwen-max', label: 'Qwen-Max (最强商业版)' },
+        { value: 'qwen-plus', label: 'Qwen-Plus (均衡性价比)' },
+        { value: 'qwen-turbo', label: 'Qwen-Turbo (最快最便宜)' },
+        { value: 'qwen-long', label: 'Qwen-Long (长上下文)' },
+        { value: 'qwen-vl-max', label: 'Qwen-VL-Max (多模态视觉)' },
+        { value: 'qwen-coder-plus', label: 'Qwen-Coder-Plus (代码专用)' },
+        { value: 'qwen-math-plus', label: 'Qwen-Math-Plus (数学专用)' },
       ],
     };
   }
