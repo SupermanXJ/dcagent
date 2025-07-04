@@ -49,7 +49,7 @@ interface ChatSession {
   messages: Message[];
   createdAt: number;
   updatedAt: number;
-  provider: 'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen';
+  provider: 'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao';
   model: string;
 }
 
@@ -59,6 +59,7 @@ interface Models {
   gemini: Array<{ value: string; label: string }>;
   zhipu: Array<{ value: string; label: string }>;
   qwen: Array<{ value: string; label: string }>;
+  doubao: Array<{ value: string; label: string }>;
 }
 
 const Chat: React.FC = () => {
@@ -73,9 +74,9 @@ const Chat: React.FC = () => {
   const [fileList, setFileList] = useState<UploadFile[]>([]);
   
   // AI配置状态
-  const [provider, setProvider] = useState<'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen'>('openai');
+  const [provider, setProvider] = useState<'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao'>('openai');
   const [model, setModel] = useState('gpt-4.1');
-  const [models, setModels] = useState<Models>({ openai: [], claude: [], gemini: [], zhipu: [], qwen: [] });
+  const [models, setModels] = useState<Models>({ openai: [], claude: [], gemini: [], zhipu: [], qwen: [], doubao: [] });
   
   // UI状态
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -323,7 +324,7 @@ const Chat: React.FC = () => {
   };
 
   // 切换提供商时更新模型
-  const handleProviderChange = (newProvider: 'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen') => {
+  const handleProviderChange = (newProvider: 'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao') => {
     setProvider(newProvider);
     const availableModels = models[newProvider];
     if (availableModels.length > 0) {
@@ -343,6 +344,10 @@ const Chat: React.FC = () => {
         // 对于通义千问，优先选择qwen-max模型
         const preferredModel = availableModels.find(m => m.value === 'qwen-max');
         setModel(preferredModel ? 'qwen-max' : availableModels[0].value);
+      } else if (newProvider === 'doubao') {
+        // 对于豆包，优先选择doubao-1.5-pro-32k模型
+        const preferredModel = availableModels.find(m => m.value === 'doubao-1.5-pro-32k');
+        setModel(preferredModel ? 'doubao-1.5-pro-32k' : availableModels[0].value);
       } else {
         setModel(availableModels[0].value);
       }
@@ -517,6 +522,7 @@ const Chat: React.FC = () => {
                   <Option value="gemini">Gemini</Option>
                   <Option value="zhipu">智谱AI</Option>
                   <Option value="qwen">Qwen</Option>
+                  <Option value="doubao">豆包</Option>
                 </Select>
               </Space>
             </Col>
@@ -539,7 +545,7 @@ const Chat: React.FC = () => {
             <Col span={6} style={{ textAlign: 'right' }}>
               <Space>
                 {/* 会话状态指示器 */}
-                {messages.length > 0 && (provider === 'openai' || provider === 'gemini' || provider === 'zhipu' || provider === 'qwen') && (
+                {messages.length > 0 && (provider === 'openai' || provider === 'gemini' || provider === 'zhipu' || provider === 'qwen' || provider === 'doubao') && (
                   <Text type="secondary" style={{ fontSize: '12px' }}>
                     🔗 会话状态已连接
                   </Text>

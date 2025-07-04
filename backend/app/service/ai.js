@@ -45,6 +45,15 @@ class AiService extends Service {
       });
       this.logger.info('Qwen client initialized successfully');
     }
+    
+    // 初始化豆包客户端 - 使用OpenAI兼容模式
+    if (this.config.ai.doubao.apiKey) {
+      this.doubaoOpenAI = new OpenAI({
+        apiKey: this.config.ai.doubao.apiKey,
+        baseURL: this.config.ai.doubao.baseURL,
+      });
+      this.logger.info('Doubao client initialized successfully');
+    }
   }
 
   async chat(options) {
@@ -61,6 +70,8 @@ class AiService extends Service {
         return await this.chatWithZhipu(model, messages, files);
       } else if (provider === 'qwen') {
         return await this.chatWithQwen(model, messages, files);
+      } else if (provider === 'doubao') {
+        return await this.chatWithDoubao(model, messages, files);
       } else {
         throw new Error(`Unsupported AI provider: ${provider}`);
       }
@@ -283,6 +294,38 @@ class AiService extends Service {
     }
   }
 
+  async chatWithDoubao(model = 'doubao-pro-32k', messages, files) {
+    if (!this.doubaoOpenAI) {
+      throw new Error('豆包 API key not configured');
+    }
+
+    try {
+      // 处理文件内容
+      const processedMessages = await this.processMessagesWithFiles(messages, files);
+      
+      // 使用OpenAI兼容模式调用豆包
+      const completion = await this.doubaoOpenAI.chat.completions.create({
+        model,
+        messages: processedMessages,
+        temperature: 0.7,
+        stream: false,
+        max_tokens: 16384,
+      });
+
+      return {
+        success: true,
+        data: {
+          content: completion.choices[0].message.content,
+          usage: completion.usage,
+          response_id: completion.id,
+        },
+      };
+    } catch (error) {
+      this.logger.error('豆包 chat error:', error);
+      throw error;
+    }
+  }
+
   convertMessagesToGeminiFormat(messages) {
     const history = [];
     let prompt = '';
@@ -434,6 +477,9 @@ class AiService extends Service {
         { value: 'qwen-vl-max', label: 'Qwen-VL-Max (多模态视觉)' },
         { value: 'qwen-coder-plus', label: 'Qwen-Coder-Plus (代码专用)' },
         { value: 'qwen-math-plus', label: 'Qwen-Math-Plus (数学专用)' },
+      ],
+      doubao: [  // https://www.volcengine.com/docs/82379/1330310 模型列表
+        { value: 'doubao-seed-1-6-250615', label: 'doubao-seed-1-6-250615 (专业版256K)' },
       ],
     };
   }

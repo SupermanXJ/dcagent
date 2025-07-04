@@ -60,6 +60,10 @@ module.exports = appInfo => {
       apiKey: process.env.DASHSCOPE_API_KEY || '',
       baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     },
+    doubao: {
+      apiKey: process.env.DOUBAO_API_KEY || '',
+      baseURL: 'https://ark.cn-beijing.volces.com/api/v3',
+    },
   };
 
   // add your user config here
