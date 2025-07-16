@@ -64,6 +64,10 @@ module.exports = appInfo => {
       apiKey: process.env.DOUBAO_API_KEY || '',
       baseURL: 'https://ark.cn-beijing.volces.com/api/v3',
     },
+    kimi: {
+      apiKey: process.env.KIMI_API_KEY || '',
+      baseURL: 'https://api.moonshot.cn/v1',
+    },
   };
 
   // add your user config here

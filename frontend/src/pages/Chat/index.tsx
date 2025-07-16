@@ -1,36 +1,32 @@
-import React, { useState, useEffect, useRef } from 'react';
 import {
-  Card,
-  Input,
-  Button,
-  Upload,
-  Select,
-  Space,
-  List,
-  Avatar,
-  Typography,
-  Spin,
-  message,
-  Row,
-  Col,
-  Divider,
-  Tooltip,
-  Modal,
-} from 'antd';
-import {
-  SendOutlined,
-  PaperClipOutlined,
-  UserOutlined,
-  RobotOutlined,
   DeleteOutlined,
   DownOutlined,
-  PlusOutlined,
   MessageOutlined,
-  EditOutlined,
-  EllipsisOutlined,
+  PaperClipOutlined,
+  PlusOutlined,
+  RobotOutlined,
+  SendOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { request } from '@umijs/max';
+import {
+  Avatar,
+  Button,
+  Card,
+  Col,
+  Divider,
+  Input,
+  List,
+  message,
+  Modal,
+  Row,
+  Select,
+  Space,
+  Typography,
+  Upload,
+} from 'antd';
 import type { UploadFile } from 'antd/es/upload/interface';
+import React, { useEffect, useRef, useState } from 'react';
 
 const { TextArea } = Input;
 const { Text, Title } = Typography;
@@ -49,7 +45,14 @@ interface ChatSession {
   messages: Message[];
   createdAt: number;
   updatedAt: number;
-  provider: 'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao';
+  provider:
+    | 'openai'
+    | 'claude'
+    | 'gemini'
+    | 'zhipu'
+    | 'qwen'
+    | 'doubao'
+    | 'kimi';
   model: string;
 }
 
@@ -60,6 +63,7 @@ interface Models {
   zhipu: Array<{ value: string; label: string }>;
   qwen: Array<{ value: string; label: string }>;
   doubao: Array<{ value: string; label: string }>;
+  kimi: Array<{ value: string; label: string }>;
 }
 
 const Chat: React.FC = () => {
@@ -67,17 +71,27 @@ const Chat: React.FC = () => {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  
+
   // 输入和交互状态
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
   const [fileList, setFileList] = useState<UploadFile[]>([]);
-  
+
   // AI配置状态
-  const [provider, setProvider] = useState<'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao'>('openai');
+  const [provider, setProvider] = useState<
+    'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao' | 'kimi'
+  >('openai');
   const [model, setModel] = useState('gpt-4.1');
-  const [models, setModels] = useState<Models>({ openai: [], claude: [], gemini: [], zhipu: [], qwen: [], doubao: [] });
-  
+  const [models, setModels] = useState<Models>({
+    openai: [],
+    claude: [],
+    gemini: [],
+    zhipu: [],
+    qwen: [],
+    doubao: [],
+    kimi: [],
+  });
+
   // UI状态
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -104,10 +118,12 @@ const Chat: React.FC = () => {
     if (savedSessions) {
       const sessions = JSON.parse(savedSessions);
       setChatSessions(sessions);
-      
+
       // 如果有会话，自动选中最新的一个
       if (sessions.length > 0) {
-        const latestSession = sessions.sort((a: ChatSession, b: ChatSession) => b.updatedAt - a.updatedAt)[0];
+        const latestSession = sessions.sort(
+          (a: ChatSession, b: ChatSession) => b.updatedAt - a.updatedAt,
+        )[0];
         setCurrentSessionId(latestSession.id);
         setMessages(latestSession.messages);
         setProvider(latestSession.provider);
@@ -125,13 +141,13 @@ const Chat: React.FC = () => {
   // 自动滚动到底部
   useEffect(() => {
     const timer = setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ 
+      messagesEndRef.current?.scrollIntoView({
         behavior: 'smooth',
         block: 'end',
-        inline: 'nearest'
+        inline: 'nearest',
       });
     }, 100);
-    
+
     return () => clearTimeout(timer);
   }, [messages]);
 
@@ -139,7 +155,9 @@ const Chat: React.FC = () => {
   const generateChatTitle = (firstMessage: string): string => {
     const maxLength = 20;
     const cleaned = firstMessage.trim().replace(/\n/g, ' ');
-    return cleaned.length > maxLength ? cleaned.substring(0, maxLength) + '...' : cleaned;
+    return cleaned.length > maxLength
+      ? cleaned.substring(0, maxLength) + '...'
+      : cleaned;
   };
 
   // 新建对话
@@ -153,7 +171,7 @@ const Chat: React.FC = () => {
       provider: 'openai',
       model: 'gpt-4.1',
     };
-    
+
     const updatedSessions = [newSession, ...chatSessions];
     saveSessions(updatedSessions);
     setCurrentSessionId(newSession.id);
@@ -166,7 +184,7 @@ const Chat: React.FC = () => {
 
   // 切换对话
   const switchToChat = (sessionId: string) => {
-    const session = chatSessions.find(s => s.id === sessionId);
+    const session = chatSessions.find((s) => s.id === sessionId);
     if (session) {
       setCurrentSessionId(sessionId);
       setMessages(session.messages);
@@ -179,29 +197,29 @@ const Chat: React.FC = () => {
   // 更新当前对话
   const updateCurrentSession = (newMessages: Message[]) => {
     if (!currentSessionId) return;
-    
-    const updatedSessions = chatSessions.map(session => {
+
+    const updatedSessions = chatSessions.map((session) => {
       if (session.id === currentSessionId) {
         const updatedSession = {
           ...session,
           messages: newMessages,
           updatedAt: Date.now(),
         };
-        
+
         // 如果是第一条消息，更新标题
         if (session.messages.length === 0 && newMessages.length > 0) {
           updatedSession.title = generateChatTitle(newMessages[0].content);
         }
-        
+
         // 更新AI配置
         updatedSession.provider = provider;
         updatedSession.model = model;
-        
+
         return updatedSession;
       }
       return session;
     });
-    
+
     saveSessions(updatedSessions);
     setMessages(newMessages);
   };
@@ -209,14 +227,14 @@ const Chat: React.FC = () => {
   // 删除对话
   const deleteChat = (sessionId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    
+
     Modal.confirm({
       title: '确认删除',
       content: '确定要删除这个对话吗？此操作不可撤销。',
       onOk: () => {
-        const updatedSessions = chatSessions.filter(s => s.id !== sessionId);
+        const updatedSessions = chatSessions.filter((s) => s.id !== sessionId);
         saveSessions(updatedSessions);
-        
+
         // 如果删除的是当前对话，切换到其他对话或创建新对话
         if (sessionId === currentSessionId) {
           if (updatedSessions.length > 0) {
@@ -264,23 +282,29 @@ const Chat: React.FC = () => {
       formData.append('provider', provider);
       formData.append('model', model);
       formData.append('message', inputValue);
-      
+
       // 构建历史消息，包含response_id信息
-      const historyData = messages.map(msg => ({
+      const historyData = messages.map((msg) => ({
         role: msg.role,
         content: msg.content,
-        ...(msg.response_id && { response_id: msg.response_id })
+        ...(msg.response_id && { response_id: msg.response_id }),
       }));
       formData.append('history', JSON.stringify(historyData));
 
       // 获取最后一个助手消息的response_id作为previous_response_id
-      const lastAssistantMessage = messages.slice().reverse().find(msg => msg.role === 'assistant');
+      const lastAssistantMessage = messages
+        .slice()
+        .reverse()
+        .find((msg) => msg.role === 'assistant');
       if (lastAssistantMessage?.response_id && provider === 'openai') {
-        formData.append('previous_response_id', lastAssistantMessage.response_id);
+        formData.append(
+          'previous_response_id',
+          lastAssistantMessage.response_id,
+        );
       }
 
       // 添加文件
-      fileList.forEach(file => {
+      fileList.forEach((file) => {
         if (file.originFileObj) {
           formData.append('files', file.originFileObj);
         }
@@ -296,7 +320,9 @@ const Chat: React.FC = () => {
           role: 'assistant',
           content: response.data.content,
           timestamp: Date.now(),
-          ...(response.data.response_id && { response_id: response.data.response_id })
+          ...(response.data.response_id && {
+            response_id: response.data.response_id,
+          }),
         };
         const finalMessages = [...newMessages, assistantMessage];
         updateCurrentSession(finalMessages);
@@ -312,7 +338,11 @@ const Chat: React.FC = () => {
   };
 
   // 处理文件上传
-  const handleFileChange = ({ fileList: newFileList }: { fileList: UploadFile[] }) => {
+  const handleFileChange = ({
+    fileList: newFileList,
+  }: {
+    fileList: UploadFile[];
+  }) => {
     setFileList(newFileList);
   };
 
@@ -324,30 +354,57 @@ const Chat: React.FC = () => {
   };
 
   // 切换提供商时更新模型
-  const handleProviderChange = (newProvider: 'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao') => {
+  const handleProviderChange = (
+    newProvider:
+      | 'openai'
+      | 'claude'
+      | 'gemini'
+      | 'zhipu'
+      | 'qwen'
+      | 'doubao'
+      | 'kimi',
+  ) => {
     setProvider(newProvider);
     const availableModels = models[newProvider];
     if (availableModels.length > 0) {
       // 对于OpenAI，优先选择gpt-4.1，如果不可用则选择第一个
       if (newProvider === 'openai') {
-        const preferredModel = availableModels.find(m => m.value === 'gpt-4.1');
+        const preferredModel = availableModels.find(
+          (m) => m.value === 'gpt-4.1',
+        );
         setModel(preferredModel ? 'gpt-4.1' : availableModels[0].value);
       } else if (newProvider === 'gemini') {
         // 对于Gemini，优先选择最新的2.5 Pro模型
-        const preferredModel = availableModels.find(m => m.value === 'gemini-2.5-pro');
+        const preferredModel = availableModels.find(
+          (m) => m.value === 'gemini-2.5-pro',
+        );
         setModel(preferredModel ? 'gemini-2.5-pro' : availableModels[0].value);
       } else if (newProvider === 'zhipu') {
         // 对于智谱AI，优先选择GLM-4基础模型
-        const preferredModel = availableModels.find(m => m.value === 'glm-4');
+        const preferredModel = availableModels.find((m) => m.value === 'glm-4');
         setModel(preferredModel ? 'glm-4' : availableModels[0].value);
       } else if (newProvider === 'qwen') {
         // 对于通义千问，优先选择qwen-max模型
-        const preferredModel = availableModels.find(m => m.value === 'qwen-max');
+        const preferredModel = availableModels.find(
+          (m) => m.value === 'qwen-max',
+        );
         setModel(preferredModel ? 'qwen-max' : availableModels[0].value);
       } else if (newProvider === 'doubao') {
         // 对于豆包，优先选择doubao-1.5-pro-32k模型
-        const preferredModel = availableModels.find(m => m.value === 'doubao-1.5-pro-32k');
-        setModel(preferredModel ? 'doubao-1.5-pro-32k' : availableModels[0].value);
+        const preferredModel = availableModels.find(
+          (m) => m.value === 'doubao-1.5-pro-32k',
+        );
+        setModel(
+          preferredModel ? 'doubao-1.5-pro-32k' : availableModels[0].value,
+        );
+      } else if (newProvider === 'kimi') {
+        // 对于Kimi，优先选择kimi-k2-instruct模型
+        const preferredModel = availableModels.find(
+          (m) => m.value === 'kimi-k2-0711-preview',
+        );
+        setModel(
+          preferredModel ? 'kimi-k2-0711-preview' : availableModels[0].value,
+        );
       } else {
         setModel(availableModels[0].value);
       }
@@ -356,40 +413,45 @@ const Chat: React.FC = () => {
 
   // 滚动到底部
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ 
+    messagesEndRef.current?.scrollIntoView({
       behavior: 'smooth',
       block: 'end',
-      inline: 'nearest'
+      inline: 'nearest',
     });
   };
 
   // 监听滚动事件
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const element = e.currentTarget;
-    const isAtBottom = element.scrollTop + element.clientHeight >= element.scrollHeight - 10;
+    const isAtBottom =
+      element.scrollTop + element.clientHeight >= element.scrollHeight - 10;
     setShowScrollButton(!isAtBottom);
   };
 
   return (
-    <div style={{ 
-      height: '100vh', 
-      display: 'flex',
-      overflow: 'hidden',
-    }}>
-      {/* 左侧对话历史栏 */}
-      <div style={{
-        width: '280px',
-        background: '#fafafa',
-        borderRight: '1px solid #e8e8e8',
+    <div
+      style={{
+        height: '100vh',
         display: 'flex',
-        flexDirection: 'column',
         overflow: 'hidden',
-      }}>
+      }}
+    >
+      {/* 左侧对话历史栏 */}
+      <div
+        style={{
+          width: '280px',
+          background: '#fafafa',
+          borderRight: '1px solid #e8e8e8',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+        }}
+      >
         {/* 新建对话按钮 */}
         <div style={{ padding: '16px' }}>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />} 
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
             onClick={createNewChat}
             style={{ width: '100%' }}
             size="large"
@@ -397,20 +459,26 @@ const Chat: React.FC = () => {
             新建对话
           </Button>
         </div>
-        
+
         {/* 对话历史列表 */}
-        <div style={{ 
-          flex: 1, 
-          overflow: 'auto',
-          padding: '0 8px',
-        }}>
+        <div
+          style={{
+            flex: 1,
+            overflow: 'auto',
+            padding: '0 8px',
+          }}
+        >
           {chatSessions.length === 0 ? (
-            <div style={{
-              padding: '32px 16px',
-              textAlign: 'center',
-              color: '#999',
-            }}>
-              <MessageOutlined style={{ fontSize: '24px', marginBottom: '8px' }} />
+            <div
+              style={{
+                padding: '32px 16px',
+                textAlign: 'center',
+                color: '#999',
+              }}
+            >
+              <MessageOutlined
+                style={{ fontSize: '24px', marginBottom: '8px' }}
+              />
               <div>暂无对话历史</div>
               <div style={{ fontSize: '12px', marginTop: '4px' }}>
                 点击"新建对话"开始
@@ -421,14 +489,17 @@ const Chat: React.FC = () => {
               dataSource={chatSessions}
               split={false}
               renderItem={(session) => (
-                <List.Item 
-                  style={{ 
-                    border: 'none', 
+                <List.Item
+                  style={{
+                    border: 'none',
                     padding: '8px',
                     margin: '4px 0',
                     borderRadius: '8px',
                     cursor: 'pointer',
-                    background: session.id === currentSessionId ? '#e6f7ff' : 'transparent',
+                    background:
+                      session.id === currentSessionId
+                        ? '#e6f7ff'
+                        : 'transparent',
                     transition: 'all 0.2s',
                   }}
                   className="chat-session-item"
@@ -445,15 +516,17 @@ const Chat: React.FC = () => {
                   }}
                 >
                   <div style={{ width: '100%', position: 'relative' }}>
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
-                      alignItems: 'flex-start',
-                      marginBottom: '4px',
-                    }}>
-                      <Text 
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        marginBottom: '4px',
+                      }}
+                    >
+                      <Text
                         strong={session.id === currentSessionId}
-                        style={{ 
+                        style={{
                           fontSize: '14px',
                           lineHeight: '1.4',
                           wordBreak: 'break-word',
@@ -468,7 +541,7 @@ const Chat: React.FC = () => {
                         size="small"
                         icon={<DeleteOutlined />}
                         onClick={(e) => deleteChat(session.id, e)}
-                        style={{ 
+                        style={{
                           opacity: 0.6,
                           fontSize: '12px',
                           width: '20px',
@@ -478,7 +551,13 @@ const Chat: React.FC = () => {
                         danger
                       />
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
                       <Text type="secondary" style={{ fontSize: '12px' }}>
                         {session.messages.length} 条消息
                       </Text>
@@ -495,19 +574,23 @@ const Chat: React.FC = () => {
       </div>
 
       {/* 右侧主聊天区域 */}
-      <div style={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column',
-        overflow: 'hidden',
-        padding: '16px',
-        boxSizing: 'border-box'
-      }}>
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          padding: '16px',
+          boxSizing: 'border-box',
+        }}
+      >
         {/* 头部配置区 */}
         <Card style={{ marginBottom: 16, flexShrink: 0 }}>
           <Row gutter={16} align="middle">
             <Col span={6}>
-              <Title level={4} style={{ margin: 0 }}>DC智能体</Title>
+              <Title level={4} style={{ margin: 0 }}>
+                DC智能体
+              </Title>
             </Col>
             <Col span={6}>
               <Space>
@@ -523,18 +606,26 @@ const Chat: React.FC = () => {
                   <Option value="zhipu">智谱AI</Option>
                   <Option value="qwen">Qwen</Option>
                   <Option value="doubao">豆包</Option>
+                  <Option value="kimi">Kimi</Option>
                 </Select>
               </Space>
             </Col>
             <Col span={6}>
-              <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
                 <Text style={{ flexShrink: 0 }}>模型:</Text>
                 <Select
                   value={model}
                   onChange={setModel}
                   style={{ flex: 1, width: '100%' }}
                 >
-                  {models[provider]?.map(m => (
+                  {models[provider]?.map((m) => (
                     <Option key={m.value} value={m.value}>
                       {m.label}
                     </Option>
@@ -545,11 +636,17 @@ const Chat: React.FC = () => {
             <Col span={6} style={{ textAlign: 'right' }}>
               <Space>
                 {/* 会话状态指示器 */}
-                {messages.length > 0 && (provider === 'openai' || provider === 'gemini' || provider === 'zhipu' || provider === 'qwen' || provider === 'doubao') && (
-                  <Text type="secondary" style={{ fontSize: '12px' }}>
-                    🔗 会话状态已连接
-                  </Text>
-                )}
+                {messages.length > 0 &&
+                  (provider === 'openai' ||
+                    provider === 'gemini' ||
+                    provider === 'zhipu' ||
+                    provider === 'qwen' ||
+                    provider === 'doubao' ||
+                    provider === 'kimi') && (
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      🔗 会话状态已连接
+                    </Text>
+                  )}
                 <Button onClick={handleClear} icon={<DeleteOutlined />}>
                   清空对话
                 </Button>
@@ -559,46 +656,52 @@ const Chat: React.FC = () => {
         </Card>
 
         {/* 消息列表区 */}
-        <Card 
-          style={{ 
-            flex: 1, 
-            marginBottom: 16, 
+        <Card
+          style={{
+            flex: 1,
+            marginBottom: 16,
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
             minHeight: 0,
             position: 'relative',
           }}
-          bodyStyle={{ 
-            padding: 0, 
-            height: '100%', 
-            display: 'flex', 
-            flexDirection: 'column' 
+          bodyStyle={{
+            padding: 0,
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
-          <div 
+          <div
             ref={messagesContainerRef}
             onScroll={handleScroll}
-            style={{ 
-              flex: 1, 
-              overflow: 'auto', 
+            style={{
+              flex: 1,
+              overflow: 'auto',
               padding: '16px',
               maxHeight: '100%',
-              scrollBehavior: 'smooth'
+              scrollBehavior: 'smooth',
             }}
           >
             {messages.length === 0 ? (
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'center', 
-                alignItems: 'center', 
-                height: '100%',
-                color: '#999',
-                flexDirection: 'column',
-              }}>
-                <MessageOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  height: '100%',
+                  color: '#999',
+                  flexDirection: 'column',
+                }}
+              >
+                <MessageOutlined
+                  style={{ fontSize: '48px', marginBottom: '16px' }}
+                />
                 <div style={{ fontSize: '16px' }}>暂无消息，开始对话吧！</div>
-                <div style={{ fontSize: '14px', marginTop: '8px', opacity: 0.7 }}>
+                <div
+                  style={{ fontSize: '14px', marginTop: '8px', opacity: 0.7 }}
+                >
                   {currentSessionId ? '在此对话中' : '请先选择或新建一个对话'}
                 </div>
               </div>
@@ -607,30 +710,46 @@ const Chat: React.FC = () => {
                 dataSource={messages}
                 split={false}
                 renderItem={(message) => (
-                  <List.Item 
-                    style={{ 
-                      border: 'none', 
+                  <List.Item
+                    style={{
+                      border: 'none',
                       padding: '12px 0',
-                      marginBottom: '8px'
+                      marginBottom: '8px',
                     }}
                   >
                     <List.Item.Meta
                       avatar={
-                        <Avatar 
-                          icon={message.role === 'user' ? <UserOutlined /> : <RobotOutlined />}
-                          style={{ 
-                            backgroundColor: message.role === 'user' ? '#1890ff' : '#52c41a',
-                            flexShrink: 0
+                        <Avatar
+                          icon={
+                            message.role === 'user' ? (
+                              <UserOutlined />
+                            ) : (
+                              <RobotOutlined />
+                            )
+                          }
+                          style={{
+                            backgroundColor:
+                              message.role === 'user' ? '#1890ff' : '#52c41a',
+                            flexShrink: 0,
                           }}
                         />
                       }
                       title={
                         <Text strong>
                           {message.role === 'user' ? '用户' : 'AI助手'}
-                          <Text type="secondary" style={{ marginLeft: 8, fontWeight: 'normal' }}>
+                          <Text
+                            type="secondary"
+                            style={{ marginLeft: 8, fontWeight: 'normal' }}
+                          >
                             {new Date(message.timestamp).toLocaleTimeString()}
                             {message.response_id && provider === 'openai' && (
-                              <span style={{ marginLeft: 8, fontSize: '10px', opacity: 0.6 }}>
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  fontSize: '10px',
+                                  opacity: 0.6,
+                                }}
+                              >
                                 ID: {message.response_id.slice(-8)}
                               </span>
                             )}
@@ -638,12 +757,14 @@ const Chat: React.FC = () => {
                         </Text>
                       }
                       description={
-                        <div style={{ 
-                          whiteSpace: 'pre-wrap', 
-                          marginTop: 8,
-                          wordBreak: 'break-word',
-                          lineHeight: '1.6'
-                        }}>
+                        <div
+                          style={{
+                            whiteSpace: 'pre-wrap',
+                            marginTop: 8,
+                            wordBreak: 'break-word',
+                            lineHeight: '1.6',
+                          }}
+                        >
                           {message.content}
                         </div>
                       }
@@ -654,7 +775,7 @@ const Chat: React.FC = () => {
             )}
             <div ref={messagesEndRef} style={{ height: '1px' }} />
           </div>
-          
+
           {/* 滚动到底部按钮 */}
           {showScrollButton && (
             <Button
@@ -667,7 +788,7 @@ const Chat: React.FC = () => {
                 bottom: '20px',
                 right: '20px',
                 zIndex: 1000,
-                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
               }}
               title="滚动到底部"
             />
@@ -684,9 +805,7 @@ const Chat: React.FC = () => {
               multiple
               showUploadList={{ showRemoveIcon: true }}
             >
-              <Button icon={<PaperClipOutlined />}>
-                上传文件
-              </Button>
+              <Button icon={<PaperClipOutlined />}>上传文件</Button>
             </Upload>
             <TextArea
               value={inputValue}
@@ -711,13 +830,13 @@ const Chat: React.FC = () => {
               发送
             </Button>
           </Space.Compact>
-          
+
           {fileList.length > 0 && (
             <>
               <Divider style={{ margin: '12px 0' }} />
               <div>
                 <Text type="secondary">已选择文件: </Text>
-                {fileList.map(file => (
+                {fileList.map((file) => (
                   <Text key={file.uid} style={{ marginRight: 8 }}>
                     {file.name}
                   </Text>
@@ -731,4 +850,4 @@ const Chat: React.FC = () => {
   );
 };
 
-export default Chat; 
+export default Chat;

@@ -1,10 +1,10 @@
 # DC智能体
 
-一款支持多模型的智能对话平台，支持OpenAI和Claude AI模型。
+一款支持多模型的智能对话平台，支持OpenAI、Claude、Google Gemini、智谱AI、通义千问、豆包和Kimi等AI模型。
 
 ## 功能特性
 
-- 🤖 支持多种AI模型（OpenAI、Claude）
+- 🤖 支持多种AI模型（OpenAI、Claude、Gemini、智谱AI、通义千问、豆包、Kimi）
 - 📁 支持文件上传和处理
 - 💬 有状态的对话体验
 - 🔗 智能会话状态管理（OpenAI Responses API）
@@ -116,6 +116,11 @@ npm run frontend:dev   # 启动前端
 # AI模型配置
 OPENAI_API_KEY=your_openai_api_key_here
 CLAUDE_API_KEY=your_claude_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
+ZHIPU_API_KEY=your_zhipu_api_key_here
+DASHSCOPE_API_KEY=your_qwen_api_key_here
+DOUBAO_API_KEY=your_doubao_api_key_here
+KIMI_API_KEY=your_kimi_api_key_here
 
 # 服务配置
 PORT=7001

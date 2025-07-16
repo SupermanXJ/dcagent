@@ -1,15 +1,15 @@
 {
   "name": "frontend",
   "version": "1.0.0",
-  "description": "DC智能体前端界面",
   "private": true,
+  "description": "DC智能体前端界面",
   "author": "DC Team",
   "scripts": {
-    "dev": "max dev",
     "build": "max build",
+    "dev": "max dev",
     "format": "prettier --cache --write .",
-    "prepare": "husky",
     "postinstall": "max setup",
+    "prepare": "husky",
     "setup": "max setup",
     "start": "pnpm run dev"
   },

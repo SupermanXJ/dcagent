@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(npm run build:*)",
+      "Bash(node:*)",
+      "Bash(npm test)",
+      "Bash(pnpm run lint:*)",
+      "Bash(npx eslint:*)",
+      "Bash(pkill:*)"
+    ],
+    "deny": []
+  }
+}

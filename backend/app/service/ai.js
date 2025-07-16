@@ -7,74 +7,105 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { ZhipuAI } = require('zhipuai-sdk-nodejs-v4');
 
 class AiService extends Service {
-  constructor(ctx) {
-    super(ctx);
-    
-    // 初始化OpenAI客户端
-    if (this.config.ai.openai.apiKey) {
-      this.openai = new OpenAI({
-        apiKey: this.config.ai.openai.apiKey,
-        baseURL: this.config.ai.openai.baseURL,
-      });
+
+  // 初始化OpenAI客户端
+  getOpenAIClient() {
+    if (!this.config.ai.openai.apiKey) {
+      throw new Error('OpenAI API key not configured');
     }
-    
-    // 初始化Claude客户端
-    if (this.config.ai.claude.apiKey) {
-      this.anthropic = new Anthropic({
-        apiKey: this.config.ai.claude.apiKey,
-      });
+    return new OpenAI({
+      apiKey: this.config.ai.openai.apiKey,
+      baseURL: this.config.ai.openai.baseURL,
+    });
+  }
+
+  // 初始化Claude客户端
+  getClaudeClient() {
+    if (!this.config.ai.claude.apiKey) {
+      throw new Error('Claude API key not configured');
     }
-    
-    // 初始化Gemini客户端
-    if (this.config.ai.gemini.apiKey) {
-      this.genAI = new GoogleGenerativeAI(this.config.ai.gemini.apiKey);
+    return new Anthropic({
+      apiKey: this.config.ai.claude.apiKey,
+    });
+  }
+
+  // 初始化Gemini客户端
+  getGeminiClient() {
+    if (!this.config.ai.gemini.apiKey) {
+      throw new Error('Gemini API key not configured');
     }
-    
-    // 初始化智谱AI客户端
-    if (this.config.ai.zhipu.apiKey) {
-      this.zhipuAI = new ZhipuAI({
-        apiKey: this.config.ai.zhipu.apiKey,
-      });
+    return new GoogleGenerativeAI(this.config.ai.gemini.apiKey);
+  }
+
+  // 初始化智谱AI客户端
+  getZhipuClient() {
+    if (!this.config.ai.zhipu.apiKey) {
+      throw new Error('智谱AI API key not configured');
     }
-    
-    // 初始化通义千问客户端 - 使用OpenAI兼容模式
-    if (this.config.ai.qwen.apiKey) {
-      this.qwenOpenAI = new OpenAI({
-        apiKey: this.config.ai.qwen.apiKey,
-        baseURL: this.config.ai.qwen.baseURL,
-      });
-      this.logger.info('Qwen client initialized successfully');
+    return new ZhipuAI({
+      apiKey: this.config.ai.zhipu.apiKey,
+    });
+  }
+
+  // 初始化通义千问客户端 - 使用OpenAI兼容模式
+  getQwenClient() {
+    if (!this.config.ai.qwen.apiKey) {
+      throw new Error('通义千问 API key not configured');
     }
-    
-    // 初始化豆包客户端 - 使用OpenAI兼容模式
-    if (this.config.ai.doubao.apiKey) {
-      this.doubaoOpenAI = new OpenAI({
-        apiKey: this.config.ai.doubao.apiKey,
-        baseURL: this.config.ai.doubao.baseURL,
-      });
-      this.logger.info('Doubao client initialized successfully');
+    return new OpenAI({
+      apiKey: this.config.ai.qwen.apiKey,
+      baseURL: this.config.ai.qwen.baseURL,
+    });
+  }
+
+  // 初始化豆包客户端 - 使用OpenAI兼容模式
+  getDoubaoClient() {
+    if (!this.config.ai.doubao.apiKey) {
+      throw new Error('豆包 API key not configured');
     }
+    return new OpenAI({
+      apiKey: this.config.ai.doubao.apiKey,
+      baseURL: this.config.ai.doubao.baseURL,
+    });
+  }
+
+  // 初始化Kimi客户端 - 使用OpenAI兼容模式
+  getKimiClient() {
+    if (!this.config.ai.kimi.apiKey) {
+      throw new Error('Kimi API key not configured');
+    }
+    return new OpenAI({
+      apiKey: this.config.ai.kimi.apiKey,
+      baseURL: this.config.ai.kimi.baseURL,
+    });
   }
 
   async chat(options) {
     const { provider, model, messages, files = [], previous_response_id } = options;
-    
+
     try {
       if (provider === 'openai') {
         return await this.chatWithOpenAI(model, messages, files, previous_response_id);
-      } else if (provider === 'claude') {
-        return await this.chatWithClaude(model, messages, files);
-      } else if (provider === 'gemini') {
-        return await this.chatWithGemini(model, messages, files);
-      } else if (provider === 'zhipu') {
-        return await this.chatWithZhipu(model, messages, files);
-      } else if (provider === 'qwen') {
-        return await this.chatWithQwen(model, messages, files);
-      } else if (provider === 'doubao') {
-        return await this.chatWithDoubao(model, messages, files);
-      } else {
-        throw new Error(`Unsupported AI provider: ${provider}`);
       }
+      if (provider === 'claude') {
+        return await this.chatWithClaude(model, messages, files);
+      }
+      if (provider === 'gemini') {
+        return await this.chatWithGemini(model, messages, files);
+      }
+      if (provider === 'zhipu') {
+        return await this.chatWithZhipu(model, messages, files);
+      }
+      if (provider === 'qwen') {
+        return await this.chatWithQwen(model, messages, files);
+      }
+      if (provider === 'doubao') {
+        return await this.chatWithDoubao(model, messages, files);
+      }
+      if (provider === 'kimi') {
+        return await this.chatWithKimi(model, messages, files);
+      }
+      throw new Error(`Unsupported AI provider: ${provider}`);
     } catch (error) {
       this.logger.error('AI chat error:', error);
       throw error;
@@ -82,9 +113,8 @@ class AiService extends Service {
   }
 
   async chatWithOpenAI(model = 'gpt-3.5-turbo', messages, files, previous_response_id) {
-    if (!this.openai) {
-      throw new Error('OpenAI API key not configured');
-    }
+    // 初始化OpenAI客户端
+    const openai = this.getOpenAIClient();
 
     // 处理文件内容
     const processedMessages = await this.processMessagesWithFiles(messages, files);
@@ -93,7 +123,7 @@ class AiService extends Service {
       // 优先使用Responses API来支持会话状态管理
       try {
         this.logger.info(`Attempting to use Responses API${previous_response_id ? ` with previous_response_id: ${previous_response_id}` : ''}`);
-        
+
         // 获取最后一条用户消息作为输入
         const lastUserMessage = processedMessages.slice().reverse().find(msg => msg.role === 'user');
         const input = lastUserMessage ? lastUserMessage.content : '';
@@ -109,7 +139,7 @@ class AiService extends Service {
           requestParams.previous_response_id = previous_response_id;
         }
 
-        const response = await this.openai.responses.create(requestParams);
+        const response = await openai.responses.create(requestParams);
 
         return {
           success: true,
@@ -122,7 +152,7 @@ class AiService extends Service {
       } catch (responsesError) {
         // 如果Responses API不可用，回退到Chat Completions API
         this.logger.warn('Responses API failed, falling back to Chat Completions API:', responsesError.message);
-        
+
         // 验证处理后的消息格式（用于Chat Completions API）
         for (let i = 0; i < processedMessages.length; i++) {
           const msg = processedMessages[i];
@@ -133,7 +163,7 @@ class AiService extends Service {
         }
 
         // 使用传统的Chat Completions API
-        const completion = await this.openai.chat.completions.create({
+        const completion = await openai.chat.completions.create({
           model,
           messages: processedMessages,
           temperature: 0.7,
@@ -157,18 +187,17 @@ class AiService extends Service {
   }
 
   async chatWithClaude(model = 'claude-3-sonnet-20240229', messages, files) {
-    if (!this.anthropic) {
-      throw new Error('Claude API key not configured');
-    }
+    // 初始化Claude客户端
+    const anthropic = this.getClaudeClient();
 
     // 处理文件内容
     const processedMessages = await this.processMessagesWithFiles(messages, files);
-    
+
     // Claude API格式转换
     const systemMessage = processedMessages.find(msg => msg.role === 'system');
     const userMessages = processedMessages.filter(msg => msg.role !== 'system');
 
-    const message = await this.anthropic.messages.create({
+    const message = await anthropic.messages.create({
       model,
       // max_tokens: 2000,
       system: systemMessage ? systemMessage.content : undefined,
@@ -185,20 +214,19 @@ class AiService extends Service {
   }
 
   async chatWithGemini(model = 'gemini-2.5-pro', messages, files) {
-    if (!this.genAI) {
-      throw new Error('Gemini API key not configured');
-    }
+    // 初始化Gemini客户端
+    const genAI = this.getGeminiClient();
 
     try {
       // 获取模型实例
-      const geminiModel = this.genAI.getGenerativeModel({ model });
+      const geminiModel = genAI.getGenerativeModel({ model });
 
       // 处理文件内容
       const processedMessages = await this.processMessagesWithFiles(messages, files);
-      
+
       // 将消息格式转换为Gemini格式
       const geminiMessages = this.convertMessagesToGeminiFormat(processedMessages);
-      
+
       // 开始聊天会话
       const chat = geminiModel.startChat({
         history: geminiMessages.history,
@@ -213,7 +241,7 @@ class AiService extends Service {
       // 发送消息
       const result = await chat.sendMessage(geminiMessages.prompt);
       const response = await result.response;
-      
+
       return {
         success: true,
         data: {
@@ -233,16 +261,15 @@ class AiService extends Service {
   }
 
   async chatWithZhipu(model = 'glm-4', messages, files) {
-    if (!this.zhipuAI) {
-      throw new Error('智谱AI API key not configured');
-    }
+    // 初始化智谱AI客户端
+    const zhipuAI = this.getZhipuClient();
 
     try {
       // 处理文件内容
       const processedMessages = await this.processMessagesWithFiles(messages, files);
-      
+
       // 智谱AI使用 createCompletions 方法
-      const response = await this.zhipuAI.createCompletions({
+      const response = await zhipuAI.createCompletions({
         model,
         messages: processedMessages,
         temperature: 0.7,
@@ -264,16 +291,15 @@ class AiService extends Service {
   }
 
   async chatWithQwen(model = 'qwen-max', messages, files) {
-    if (!this.qwenOpenAI) {
-      throw new Error('通义千问 API key not configured');
-    }
+    // 初始化通义千问客户端
+    const qwenOpenAI = this.getQwenClient();
 
     try {
       // 处理文件内容
       const processedMessages = await this.processMessagesWithFiles(messages, files);
-      
+
       // 使用OpenAI兼容模式调用通义千问
-      const completion = await this.qwenOpenAI.chat.completions.create({
+      const completion = await qwenOpenAI.chat.completions.create({
         model,
         messages: processedMessages,
         temperature: 0.7,
@@ -295,16 +321,15 @@ class AiService extends Service {
   }
 
   async chatWithDoubao(model = 'doubao-pro-32k', messages, files) {
-    if (!this.doubaoOpenAI) {
-      throw new Error('豆包 API key not configured');
-    }
+    // 初始化豆包客户端
+    const doubaoOpenAI = this.getDoubaoClient();
 
     try {
       // 处理文件内容
       const processedMessages = await this.processMessagesWithFiles(messages, files);
-      
+
       // 使用OpenAI兼容模式调用豆包
-      const completion = await this.doubaoOpenAI.chat.completions.create({
+      const completion = await doubaoOpenAI.chat.completions.create({
         model,
         messages: processedMessages,
         temperature: 0.7,
@@ -326,10 +351,44 @@ class AiService extends Service {
     }
   }
 
+  async chatWithKimi(model = 'kimi-k2-0711-preview', messages, files) {
+    // 初始化Kimi客户端
+    const kimiOpenAI = this.getKimiClient();
+
+    try {
+      // 处理文件内容
+      const processedMessages = await this.processMessagesWithFiles(messages, files);
+
+      // 根据文档推荐，Kimi K2 的温度应该是 0.6
+      const temperature = 0.2;
+
+      // 使用OpenAI兼容模式调用Kimi
+      const completion = await kimiOpenAI.chat.completions.create({
+        model,
+        messages: processedMessages,
+        temperature,
+        stream: false,
+        max_tokens: 128000,
+      });
+
+      return {
+        success: true,
+        data: {
+          content: completion.choices[0].message.content,
+          usage: completion.usage,
+          response_id: completion.id,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Kimi chat error:', error);
+      throw error;
+    }
+  }
+
   convertMessagesToGeminiFormat(messages) {
     const history = [];
     let prompt = '';
-    
+
     for (const message of messages) {
       if (message.role === 'system') {
         // 系统消息可以添加到第一个用户消息中
@@ -346,12 +405,12 @@ class AiService extends Service {
         });
       }
     }
-    
+
     // 获取最后一个用户消息作为当前prompt
     if (history.length > 0 && history[history.length - 1].role === 'user') {
       prompt = history.pop().parts[0].text;
     }
-    
+
     return { history, prompt };
   }
 
@@ -362,15 +421,15 @@ class AiService extends Service {
       if (typeof msg === 'string') {
         return { role: 'user', content: msg };
       }
-      
+
       // 如果消息是对象但缺少必要字段，补充默认值
       if (typeof msg === 'object' && msg !== null) {
         return {
           role: msg.role || 'user',
-          content: msg.content || msg.message || String(msg)
+          content: msg.content || msg.message || String(msg),
         };
       }
-      
+
       // 其他情况转换为字符串
       return { role: 'user', content: String(msg) };
     });
@@ -378,14 +437,14 @@ class AiService extends Service {
     // 如果有文件，将文件内容添加到消息中
     if (files && files.length > 0) {
       const fileContents = await this.readFiles(files);
-      const fileContext = fileContents.map(file => 
+      const fileContext = fileContents.map(file =>
         `文件名: ${file.filename}\n内容:\n${file.content}`
       ).join('\n\n---\n\n');
 
       // 将文件内容添加到第一个用户消息前
       const firstUserMsgIndex = validatedMessages.findIndex(msg => msg.role === 'user');
       if (firstUserMsgIndex >= 0) {
-        validatedMessages[firstUserMsgIndex].content = 
+        validatedMessages[firstUserMsgIndex].content =
           `以下是上传的文件内容:\n\n${fileContext}\n\n---\n\n${validatedMessages[firstUserMsgIndex].content}`;
       }
     }
@@ -478,11 +537,15 @@ class AiService extends Service {
         { value: 'qwen-coder-plus', label: 'Qwen-Coder-Plus (代码专用)' },
         { value: 'qwen-math-plus', label: 'Qwen-Math-Plus (数学专用)' },
       ],
-      doubao: [  // https://www.volcengine.com/docs/82379/1330310 模型列表
+      doubao: [ // https://www.volcengine.com/docs/82379/1330310 模型列表
         { value: 'doubao-seed-1-6-250615', label: 'doubao-seed-1-6-250615 (专业版256K)' },
+      ],
+      kimi: [
+        { value: 'kimi-k2-0711-preview', label: 'Kimi K2 (最新开源智能体模型)' },
       ],
     };
   }
 }
 
-module.exports = AiService; 
+
+module.exports = AiService;
