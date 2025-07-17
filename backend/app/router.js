@@ -11,4 +11,7 @@ module.exports = app => {
   router.post('/api/chat/send', controller.chat.send);
   router.get('/api/chat/models', controller.chat.models);
   router.post('/api/chat/upload', controller.chat.upload);
+  
+  // 规则过滤相关路由
+  router.post('/api/rule/filter', controller.ruleFilter.filter);
 };

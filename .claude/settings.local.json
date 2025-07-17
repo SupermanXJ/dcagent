@@ -7,7 +7,12 @@
       "Bash(npm test)",
       "Bash(pnpm run lint:*)",
       "Bash(npx eslint:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(jq:*)",
+      "Bash(rm:*)",
+      "Bash(npm run dev:*)",
+      "Bash(pnpm run:*)",
+      "Bash(lsof:*)"
     ],
     "deny": []
   }

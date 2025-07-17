@@ -19,6 +19,11 @@ export default defineConfig({
       path: '/chat',
       component: './Chat',
     },
+    {
+      name: '规则过滤',
+      path: '/rule-filter',
+      component: './RuleFilter',
+    },
   ],
   proxy: {
     '/api': {

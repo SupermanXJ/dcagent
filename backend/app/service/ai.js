@@ -475,6 +475,157 @@ class AiService extends Service {
     return results;
   }
 
+  filterRulesByItems(rulesData, itemsArray) {
+    // 验证参数
+    if (!rulesData || typeof rulesData !== 'object' || !itemsArray || !Array.isArray(itemsArray)) {
+      throw new Error('Invalid parameters: rulesData must be an object and itemsArray must be an array');
+    }
+
+    // 创建结果对象，保留除properties和allOf外的所有顶层属性
+    const filteredResult = {};
+    
+    // 复制所有非properties和allOf的属性
+    Object.keys(rulesData).forEach(key => {
+      if (key !== 'properties' && key !== 'allOf') {
+        filteredResult[key] = rulesData[key];
+      }
+    });
+
+    // 筛选properties
+    if (rulesData.properties && typeof rulesData.properties === 'object') {
+      const filteredProperties = {};
+      
+      // 遍历rulesData的properties
+      Object.keys(rulesData.properties).forEach(propertyKey => {
+        // 如果itemsArray中包含这个属性名，则保留它
+        if (itemsArray.includes(propertyKey)) {
+          filteredProperties[propertyKey] = rulesData.properties[propertyKey];
+        }
+      });
+      
+      // 只有在有筛选结果时才添加properties
+      if (Object.keys(filteredProperties).length > 0) {
+        filteredResult.properties = filteredProperties;
+      }
+    }
+
+    // 筛选allOf
+    if (rulesData.allOf && Array.isArray(rulesData.allOf)) {
+      const filteredAllOf = [];
+      
+      // 递归处理allOf中的每个条件
+      rulesData.allOf.forEach(condition => {
+        const filteredCondition = this.filterAllOfCondition(condition, itemsArray);
+        if (filteredCondition && this.hasRelevantContent(filteredCondition)) {
+          filteredAllOf.push(filteredCondition);
+        }
+      });
+      
+      // 只有在有筛选结果时才添加allOf
+      if (filteredAllOf.length > 0) {
+        filteredResult.allOf = filteredAllOf;
+      }
+    }
+
+    return filteredResult;
+  }
+
+  // 辅助方法：筛选allOf条件
+  filterAllOfCondition(condition, itemsArray) {
+    if (!condition || typeof condition !== 'object') {
+      return null;
+    }
+
+    const filtered = {};
+
+    Object.keys(condition).forEach(key => {
+      const value = condition[key];
+
+      if (key === 'properties' && typeof value === 'object') {
+        // 筛选properties
+        const filteredProps = {};
+        Object.keys(value).forEach(propKey => {
+          if (itemsArray.includes(propKey)) {
+            filteredProps[propKey] = value[propKey];
+          }
+        });
+        if (Object.keys(filteredProps).length > 0) {
+          filtered.properties = filteredProps;
+        }
+      } else if (key === 'required' && Array.isArray(value)) {
+        // 筛选required数组
+        const filteredRequired = value.filter(item => itemsArray.includes(item));
+        if (filteredRequired.length > 0) {
+          filtered.required = filteredRequired;
+        }
+      } else if (key === 'allOf' && Array.isArray(value)) {
+        // 递归处理嵌套的allOf
+        const filteredNested = value.map(nestedCondition => 
+          this.filterAllOfCondition(nestedCondition, itemsArray)
+        ).filter(result => result && this.hasRelevantContent(result));
+        
+        if (filteredNested.length > 0) {
+          filtered.allOf = filteredNested;
+        }
+      } else if (key === 'anyOf' && Array.isArray(value)) {
+        // 递归处理anyOf
+        const filteredAnyOf = value.map(nestedCondition => 
+          this.filterAllOfCondition(nestedCondition, itemsArray)
+        ).filter(result => result && this.hasRelevantContent(result));
+        
+        if (filteredAnyOf.length > 0) {
+          filtered.anyOf = filteredAnyOf;
+        }
+      } else if (key === 'if' || key === 'then' || key === 'else') {
+        // 递归处理条件逻辑
+        const filteredCondition = this.filterAllOfCondition(value, itemsArray);
+        if (filteredCondition && this.hasRelevantContent(filteredCondition)) {
+          filtered[key] = filteredCondition;
+        }
+      } else if (key === 'not' && typeof value === 'object') {
+        // 递归处理not条件
+        const filteredNot = this.filterAllOfCondition(value, itemsArray);
+        if (filteredNot && this.hasRelevantContent(filteredNot)) {
+          filtered.not = filteredNot;
+        }
+      } else {
+        // 其他属性保持不变
+        filtered[key] = value;
+      }
+    });
+
+    return Object.keys(filtered).length > 0 ? filtered : null;
+  }
+
+  // 辅助方法：检查对象是否包含相关内容
+  hasRelevantContent(obj) {
+    if (!obj || typeof obj !== 'object') {
+      return false;
+    }
+
+    // 检查是否有properties或required
+    if (obj.properties && Object.keys(obj.properties).length > 0) {
+      return true;
+    }
+    if (obj.required && obj.required.length > 0) {
+      return true;
+    }
+
+    // 递归检查嵌套结构
+    if (obj.allOf && obj.allOf.length > 0) {
+      return true;
+    }
+    if (obj.anyOf && obj.anyOf.length > 0) {
+      return true;
+    }
+    if (obj.if || obj.then || obj.else || obj.not) {
+      return true;
+    }
+
+    // 如果有其他非空属性，也认为有相关内容
+    return Object.keys(obj).length > 0;
+  }
+
   getAvailableModels() {
     return {
       openai: [
