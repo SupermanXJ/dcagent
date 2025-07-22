@@ -137,6 +137,9 @@ class AiService extends Service {
           messages: processedMessages,
           temperature: 0.7,
           stream: true,
+          stream_options: {
+            include_usage: true, // 在流式响应中包含usage信息
+          },
         });
 
         return {
@@ -368,6 +371,9 @@ class AiService extends Service {
           messages: processedMessages,
           temperature: 0.7,
           stream: true,
+          stream_options: {
+            include_usage: true,
+          },
         });
 
         return {
@@ -414,6 +420,9 @@ class AiService extends Service {
           temperature: 0.7,
           stream: true,
           max_tokens: 16384,
+          stream_options: {
+            include_usage: true,
+          },
         });
 
         return {
@@ -464,6 +473,9 @@ class AiService extends Service {
           temperature,
           stream: true,
           max_tokens: 128000,
+          stream_options: {
+            include_usage: true,
+          },
         });
 
         return {

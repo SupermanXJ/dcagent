@@ -32,11 +32,20 @@ const { TextArea } = Input;
 const { Text, Title } = Typography;
 const { Option } = Select;
 
+interface Usage {
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
   response_id?: string; // OpenAI响应ID，用于会话状态管理
+  usage?: Usage; // token用量信息
 }
 
 interface ChatSession {
@@ -371,8 +380,10 @@ const Chat: React.FC = () => {
                   updateCurrentSession(currentMessages);
                 }
                 if (parsed.usage) {
-                  // 处理usage信息
-                  console.log('Usage:', parsed.usage);
+                  // 保存usage信息到消息中
+                  assistantMessage.usage = parsed.usage;
+                  currentMessages = [...newMessages, { ...assistantMessage }];
+                  updateCurrentSession(currentMessages);
                 }
                 if (parsed.response_id) {
                   // 更新response_id
@@ -391,6 +402,9 @@ const Chat: React.FC = () => {
           assistantMessage.content = result.data.content;
           if (result.data.response_id) {
             assistantMessage.response_id = result.data.response_id;
+          }
+          if (result.data.usage) {
+            assistantMessage.usage = result.data.usage;
           }
           const finalMessages = [...newMessages, assistantMessage];
           updateCurrentSession(finalMessages);
@@ -849,6 +863,26 @@ const Chat: React.FC = () => {
                                 }}
                               >
                                 ID: {message.response_id.slice(-8)}
+                              </span>
+                            )}
+                            {message.usage && message.role === 'assistant' && (
+                              <span
+                                style={{
+                                  marginLeft: 8,
+                                  fontSize: '10px',
+                                  opacity: 0.6,
+                                  color: '#52c41a',
+                                }}
+                              >
+                                📊{' '}
+                                {message.usage.input_tokens ||
+                                  message.usage.prompt_tokens ||
+                                  0}
+                                →
+                                {message.usage.output_tokens ||
+                                  message.usage.completion_tokens ||
+                                  0}{' '}
+                                tokens
                               </span>
                             )}
                           </Text>

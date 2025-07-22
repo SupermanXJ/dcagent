@@ -73,18 +73,39 @@ class ChatController extends Controller {
                 ctx.res.write(`data: ${JSON.stringify({ content: delta })}\n\n`);
               }
             } else if (event.type === 'message_stop') {
-              ctx.res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+              // Claude在message_stop事件中包含usage信息
+              const usage = event.message?.usage;
+              if (usage) {
+                ctx.res.write(`data: ${JSON.stringify({ usage, done: true })}\n\n`);
+              } else {
+                ctx.res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+              }
             }
           }
         } else if (provider === 'gemini') {
           // Gemini的流格式
+          let finalUsage = null;
           for await (const chunk of result.stream) {
             const text = chunk.text();
             if (text) {
               ctx.res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
             }
+            // 尝试获取usage信息（可能在流的结尾）
+            const response = await chunk.response;
+            if (response && response.usageMetadata) {
+              finalUsage = {
+                prompt_tokens: response.usageMetadata.promptTokenCount || 0,
+                completion_tokens: response.usageMetadata.candidatesTokenCount || 0,
+                total_tokens: response.usageMetadata.totalTokenCount || 0,
+              };
+            }
           }
-          ctx.res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+          // 在结束时发送usage信息
+          if (finalUsage) {
+            ctx.res.write(`data: ${JSON.stringify({ usage: finalUsage, done: true })}\n\n`);
+          } else {
+            ctx.res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+          }
         } else if (provider === 'zhipu') {
           // 智谱AI的流格式
           for await (const chunk of result.stream) {
