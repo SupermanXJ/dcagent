@@ -1,21 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(chmod:*)",
-      "Bash(npm run build:*)",
-      "Bash(node:*)",
-      "Bash(npm test)",
-      "Bash(pnpm run lint:*)",
-      "Bash(npx eslint:*)",
-      "Bash(pkill:*)",
-      "Bash(jq:*)",
-      "Bash(rm:*)",
-      "Bash(npm run dev:*)",
-      "Bash(pnpm run:*)",
-      "Bash(lsof:*)",
-      "Bash(curl:*)",
-      "Bash(kill:*)"
+      "Bash(ls:*)"
     ],
     "deny": []
-  }
+  },
+  "skipConfirmations": true,
+  "autoApprove": true
 }
