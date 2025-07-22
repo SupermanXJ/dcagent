@@ -13,13 +13,11 @@ import {
   Avatar,
   Button,
   Card,
-  Col,
   Divider,
   Input,
   List,
   message,
   Modal,
-  Row,
   Select,
   Space,
   Typography,
@@ -670,20 +668,64 @@ const Chat: React.FC = () => {
         }}
       >
         {/* 头部配置区 */}
-        <Card style={{ marginBottom: 16, flexShrink: 0 }}>
-          <Row gutter={16} align="middle" style={{ marginBottom: 12 }}>
-            <Col span={6}>
-              <Title level={4} style={{ margin: 0 }}>
+        <Card 
+          style={{ 
+            marginBottom: 16, 
+            flexShrink: 0,
+            background: 'linear-gradient(135deg, #f6f9ff 0%, #e8f4f8 100%)',
+            borderRadius: '12px',
+            border: '1px solid #e1f0ff'
+          }}
+        >
+          {/* 第一行：主要配置 */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            marginBottom: '20px',
+            flexWrap: 'wrap',
+            gap: '16px'
+          }}>
+            {/* 标题区域 */}
+            <div style={{ minWidth: '120px' }}>
+              <Title level={3} style={{ 
+                margin: 0, 
+                background: 'linear-gradient(135deg, #1890ff, #722ed1)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontSize: '20px',
+                fontWeight: 600
+              }}>
                 DC智能体
               </Title>
-            </Col>
-            <Col span={6}>
-              <Space>
-                <Text>AI提供商:</Text>
+            </div>
+
+            {/* 核心配置区域 */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '24px',
+              flex: 1,
+              justifyContent: 'center',
+              flexWrap: 'wrap',
+              minWidth: '400px'
+            }}>
+              {/* AI提供商选择 */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.8)',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid rgba(24, 144, 255, 0.2)'
+              }}>
+                <Text strong style={{ color: '#1890ff', fontSize: '14px' }}>AI提供商:</Text>
                 <Select
                   value={provider}
                   onChange={handleProviderChange}
-                  style={{ width: 120 }}
+                  style={{ width: 130 }}
+                  size="middle"
                 >
                   <Option value="openai">OpenAI</Option>
                   <Option value="claude">Claude</Option>
@@ -693,22 +735,25 @@ const Chat: React.FC = () => {
                   <Option value="doubao">豆包</Option>
                   <Option value="kimi">Kimi</Option>
                 </Select>
-              </Space>
-            </Col>
-            <Col span={6}>
-              <div
-                style={{
-                  width: '100%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <Text style={{ flexShrink: 0 }}>模型:</Text>
+              </div>
+
+              {/* 模型选择 */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.8)',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid rgba(24, 144, 255, 0.2)',
+                minWidth: '200px'
+              }}>
+                <Text strong style={{ color: '#1890ff', fontSize: '14px', flexShrink: 0 }}>模型:</Text>
                 <Select
                   value={model}
                   onChange={setModel}
-                  style={{ flex: 1, width: '100%' }}
+                  style={{ flex: 1, minWidth: '300px' }}
+                  size="middle"
                 >
                   {models[provider]?.map((m) => (
                     <Option key={m.value} value={m.value}>
@@ -717,52 +762,134 @@ const Chat: React.FC = () => {
                   ))}
                 </Select>
               </div>
-            </Col>
-            <Col span={6} style={{ textAlign: 'right' }}>
-              <Button onClick={handleClear} icon={<DeleteOutlined />}>
-                清空对话
-              </Button>
-            </Col>
-          </Row>
-          <Row gutter={16} align="middle">
-            <Col span={6}>
-              <Space>
-                <Text>流式输出:</Text>
+
+              {/* 流式输出开关 */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.8)',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid rgba(24, 144, 255, 0.2)'
+              }}>
+                <Text strong style={{ color: '#1890ff', fontSize: '14px' }}>流式输出:</Text>
                 <Select
                   value={enableStream}
                   onChange={setEnableStream}
-                  style={{ width: 80 }}
+                  style={{ width: 70 }}
+                  size="middle"
                 >
                   <Option value={false}>否</Option>
                   <Option value={true}>是</Option>
                 </Select>
-              </Space>
-            </Col>
-            <Col span={18}>
-              <Space>
-                {/* 会话状态指示器 */}
-                {messages.length > 0 &&
-                  (provider === 'openai' ||
-                    provider === 'gemini' ||
-                    provider === 'zhipu' ||
-                    provider === 'qwen' ||
-                    provider === 'doubao' ||
-                    provider === 'kimi') && (
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
-                      🔗 会话状态已连接
+              </div>
+            </div>
+
+            {/* 操作按钮区域 */}
+            <div>
+              <Button 
+                onClick={handleClear} 
+                icon={<DeleteOutlined />}
+                size="middle"
+                style={{
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+                danger
+              >
+                清空对话
+              </Button>
+            </div>
+          </div>
+
+          {/* 第二行：状态指示器 */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            paddingTop: '12px',
+            borderTop: '1px solid rgba(24, 144, 255, 0.1)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+              {/* 会话状态指示器 */}
+              {messages.length > 0 &&
+                (provider === 'openai' ||
+                  provider === 'gemini' ||
+                  provider === 'zhipu' ||
+                  provider === 'qwen' ||
+                  provider === 'doubao' ||
+                  provider === 'kimi') && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'rgba(82, 196, 26, 0.1)',
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(82, 196, 26, 0.3)'
+                  }}>
+                    <span style={{ 
+                      width: '8px', 
+                      height: '8px', 
+                      borderRadius: '50%', 
+                      background: '#52c41a',
+                      display: 'inline-block',
+                      animation: 'pulse 2s infinite'
+                    }} />
+                    <Text style={{ fontSize: '12px', color: '#52c41a', fontWeight: 500 }}>
+                      会话已连接
                     </Text>
-                  )}
-                {enableStream && (
-                  <Text
-                    type="secondary"
-                    style={{ fontSize: '12px', color: '#1890ff' }}
-                  >
-                    ⚡ 流式输出已启用
-                  </Text>
+                    <style>{`
+                      @keyframes pulse {
+                        0% { opacity: 1; }
+                        50% { opacity: 0.5; }
+                        100% { opacity: 1; }
+                      }
+                    `}</style>
+                  </div>
                 )}
-              </Space>
-            </Col>
-          </Row>
+
+              {/* 流式输出指示器 */}
+              {enableStream && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(24, 144, 255, 0.1)',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(24, 144, 255, 0.3)'
+                }}>
+                  <span style={{ 
+                    fontSize: '12px',
+                    animation: 'flash 1s infinite'
+                  }}>⚡</span>
+                  <Text style={{ fontSize: '12px', color: '#1890ff', fontWeight: 500 }}>
+                    流式输出已启用
+                  </Text>
+                  <style>{`
+                    @keyframes flash {
+                      0%, 50% { opacity: 1; }
+                      51%, 100% { opacity: 0.3; }
+                    }
+                  `}</style>
+                </div>
+              )}
+            </div>
+
+            {/* 右侧统计信息 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              {messages.length > 0 && (
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  当前对话: {messages.length} 条消息
+                </Text>
+              )}
+              <Text type="secondary" style={{ fontSize: '12px' }}>
+                {provider.toUpperCase()} · {models[provider]?.find(m => m.value === model)?.label || model}
+              </Text>
+            </div>
+          </div>
         </Card>
 
         {/* 消息列表区 */}
