@@ -36,7 +36,7 @@ module.exports = appInfo => {
   config.multipart = {
     mode: 'file',
     fileSize: '50mb',
-    fileExtensions: ['.txt', '.pdf', '.docx', '.doc', '.md', '.json', '.csv'],
+    fileExtensions: [ '.txt', '.pdf', '.docx', '.doc', '.md', '.json', '.csv' ],
   };
 
   // AI模型配置 (在本地配置文件中设置实际的API密钥)

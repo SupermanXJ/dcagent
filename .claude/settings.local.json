@@ -12,7 +12,9 @@
       "Bash(rm:*)",
       "Bash(npm run dev:*)",
       "Bash(pnpm run:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(curl:*)",
+      "Bash(kill:*)"
     ],
     "deny": []
   }

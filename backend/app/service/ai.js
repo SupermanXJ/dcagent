@@ -81,29 +81,29 @@ class AiService extends Service {
   }
 
   async chat(options) {
-    const { provider, model, messages, files = [], previous_response_id } = options;
+    const { provider, model, messages, files = [], previous_response_id, stream = false } = options;
 
     try {
       if (provider === 'openai') {
-        return await this.chatWithOpenAI(model, messages, files, previous_response_id);
+        return await this.chatWithOpenAI(model, messages, files, previous_response_id, stream);
       }
       if (provider === 'claude') {
-        return await this.chatWithClaude(model, messages, files);
+        return await this.chatWithClaude(model, messages, files, stream);
       }
       if (provider === 'gemini') {
-        return await this.chatWithGemini(model, messages, files);
+        return await this.chatWithGemini(model, messages, files, stream);
       }
       if (provider === 'zhipu') {
-        return await this.chatWithZhipu(model, messages, files);
+        return await this.chatWithZhipu(model, messages, files, stream);
       }
       if (provider === 'qwen') {
-        return await this.chatWithQwen(model, messages, files);
+        return await this.chatWithQwen(model, messages, files, stream);
       }
       if (provider === 'doubao') {
-        return await this.chatWithDoubao(model, messages, files);
+        return await this.chatWithDoubao(model, messages, files, stream);
       }
       if (provider === 'kimi') {
-        return await this.chatWithKimi(model, messages, files);
+        return await this.chatWithKimi(model, messages, files, stream);
       }
       throw new Error(`Unsupported AI provider: ${provider}`);
     } catch (error) {
@@ -112,7 +112,7 @@ class AiService extends Service {
     }
   }
 
-  async chatWithOpenAI(model = 'gpt-3.5-turbo', messages, files, previous_response_id) {
+  async chatWithOpenAI(model = 'gpt-3.5-turbo', messages, files, previous_response_id, stream = false) {
     // 初始化OpenAI客户端
     const openai = this.getOpenAIClient();
 
@@ -120,7 +120,32 @@ class AiService extends Service {
     const processedMessages = await this.processMessagesWithFiles(messages, files);
 
     try {
-      // 优先使用Responses API来支持会话状态管理
+      // 如果需要流式响应，直接使用Chat Completions API
+      if (stream) {
+        // 验证处理后的消息格式
+        for (let i = 0; i < processedMessages.length; i++) {
+          const msg = processedMessages[i];
+          if (!msg || typeof msg !== 'object' || !msg.role || !msg.content) {
+            this.logger.error(`Invalid message format at index ${i}:`, msg);
+            throw new Error(`Invalid message format at index ${i}: expected object with 'role' and 'content' properties`);
+          }
+        }
+
+        // 使用流式Chat Completions API
+        const stream = await openai.chat.completions.create({
+          model,
+          messages: processedMessages,
+          temperature: 0.7,
+          stream: true,
+        });
+
+        return {
+          success: true,
+          stream,
+        };
+      }
+
+      // 非流式响应，保持原有逻辑
       try {
         this.logger.info(`Attempting to use Responses API${previous_response_id ? ` with previous_response_id: ${previous_response_id}` : ''}`);
 
@@ -186,7 +211,7 @@ class AiService extends Service {
     }
   }
 
-  async chatWithClaude(model = 'claude-3-sonnet-20240229', messages, files) {
+  async chatWithClaude(model = 'claude-3-sonnet-20240229', messages, files, stream = false) {
     // 初始化Claude客户端
     const anthropic = this.getClaudeClient();
 
@@ -196,6 +221,20 @@ class AiService extends Service {
     // Claude API格式转换
     const systemMessage = processedMessages.find(msg => msg.role === 'system');
     const userMessages = processedMessages.filter(msg => msg.role !== 'system');
+
+    if (stream) {
+      const stream = await anthropic.messages.create({
+        model,
+        system: systemMessage ? systemMessage.content : undefined,
+        messages: userMessages,
+        stream: true,
+      });
+
+      return {
+        success: true,
+        stream,
+      };
+    }
 
     const message = await anthropic.messages.create({
       model,
@@ -213,7 +252,7 @@ class AiService extends Service {
     };
   }
 
-  async chatWithGemini(model = 'gemini-2.5-pro', messages, files) {
+  async chatWithGemini(model = 'gemini-2.5-pro', messages, files, stream = false) {
     // 初始化Gemini客户端
     const genAI = this.getGeminiClient();
 
@@ -238,6 +277,15 @@ class AiService extends Service {
         },
       });
 
+      if (stream) {
+        // 使用流式响应
+        const result = await chat.sendMessageStream(geminiMessages.prompt);
+        return {
+          success: true,
+          stream: result.stream,
+        };
+      }
+
       // 发送消息
       const result = await chat.sendMessage(geminiMessages.prompt);
       const response = await result.response;
@@ -260,13 +308,28 @@ class AiService extends Service {
     }
   }
 
-  async chatWithZhipu(model = 'glm-4', messages, files) {
+  async chatWithZhipu(model = 'glm-4', messages, files, stream = false) {
     // 初始化智谱AI客户端
     const zhipuAI = this.getZhipuClient();
 
     try {
       // 处理文件内容
       const processedMessages = await this.processMessagesWithFiles(messages, files);
+
+      if (stream) {
+        // 智谱AI使用 createCompletions 方法，支持流式响应
+        const streamResponse = zhipuAI.createCompletions({
+          model,
+          messages: processedMessages,
+          temperature: 0.7,
+          stream: true,
+        });
+
+        return {
+          success: true,
+          stream: streamResponse,
+        };
+      }
 
       // 智谱AI使用 createCompletions 方法
       const response = await zhipuAI.createCompletions({
@@ -290,13 +353,28 @@ class AiService extends Service {
     }
   }
 
-  async chatWithQwen(model = 'qwen-max', messages, files) {
+  async chatWithQwen(model = 'qwen-max', messages, files, stream = false) {
     // 初始化通义千问客户端
     const qwenOpenAI = this.getQwenClient();
 
     try {
       // 处理文件内容
       const processedMessages = await this.processMessagesWithFiles(messages, files);
+
+      if (stream) {
+        // 使用OpenAI兼容模式调用通义千问，支持流式响应
+        const stream = await qwenOpenAI.chat.completions.create({
+          model,
+          messages: processedMessages,
+          temperature: 0.7,
+          stream: true,
+        });
+
+        return {
+          success: true,
+          stream,
+        };
+      }
 
       // 使用OpenAI兼容模式调用通义千问
       const completion = await qwenOpenAI.chat.completions.create({
@@ -320,13 +398,29 @@ class AiService extends Service {
     }
   }
 
-  async chatWithDoubao(model = 'doubao-pro-32k', messages, files) {
+  async chatWithDoubao(model = 'doubao-pro-32k', messages, files, stream = false) {
     // 初始化豆包客户端
     const doubaoOpenAI = this.getDoubaoClient();
 
     try {
       // 处理文件内容
       const processedMessages = await this.processMessagesWithFiles(messages, files);
+
+      if (stream) {
+        // 使用OpenAI兼容模式调用豆包，支持流式响应
+        const stream = await doubaoOpenAI.chat.completions.create({
+          model,
+          messages: processedMessages,
+          temperature: 0.7,
+          stream: true,
+          max_tokens: 16384,
+        });
+
+        return {
+          success: true,
+          stream,
+        };
+      }
 
       // 使用OpenAI兼容模式调用豆包
       const completion = await doubaoOpenAI.chat.completions.create({
@@ -351,7 +445,7 @@ class AiService extends Service {
     }
   }
 
-  async chatWithKimi(model = 'kimi-k2-0711-preview', messages, files) {
+  async chatWithKimi(model = 'kimi-k2-0711-preview', messages, files, stream = false) {
     // 初始化Kimi客户端
     const kimiOpenAI = this.getKimiClient();
 
@@ -361,6 +455,22 @@ class AiService extends Service {
 
       // 根据文档推荐，Kimi K2 的温度应该是 0.6
       const temperature = 0.2;
+
+      if (stream) {
+        // 使用OpenAI兼容模式调用Kimi，支持流式响应
+        const stream = await kimiOpenAI.chat.completions.create({
+          model,
+          messages: processedMessages,
+          temperature,
+          stream: true,
+          max_tokens: 128000,
+        });
+
+        return {
+          success: true,
+          stream,
+        };
+      }
 
       // 使用OpenAI兼容模式调用Kimi
       const completion = await kimiOpenAI.chat.completions.create({
@@ -483,7 +593,7 @@ class AiService extends Service {
 
     // 创建结果对象，保留除properties和allOf外的所有顶层属性
     const filteredResult = {};
-    
+
     // 复制所有非properties和allOf的属性
     Object.keys(rulesData).forEach(key => {
       if (key !== 'properties' && key !== 'allOf') {
@@ -494,7 +604,7 @@ class AiService extends Service {
     // 筛选properties
     if (rulesData.properties && typeof rulesData.properties === 'object') {
       const filteredProperties = {};
-      
+
       // 遍历rulesData的properties
       Object.keys(rulesData.properties).forEach(propertyKey => {
         // 如果itemsArray中包含这个属性名，则保留它
@@ -502,7 +612,7 @@ class AiService extends Service {
           filteredProperties[propertyKey] = rulesData.properties[propertyKey];
         }
       });
-      
+
       // 只有在有筛选结果时才添加properties
       if (Object.keys(filteredProperties).length > 0) {
         filteredResult.properties = filteredProperties;
@@ -512,7 +622,7 @@ class AiService extends Service {
     // 筛选allOf
     if (rulesData.allOf && Array.isArray(rulesData.allOf)) {
       const filteredAllOf = [];
-      
+
       // 递归处理allOf中的每个条件
       rulesData.allOf.forEach(condition => {
         const filteredCondition = this.filterAllOfCondition(condition, itemsArray);
@@ -520,7 +630,7 @@ class AiService extends Service {
           filteredAllOf.push(filteredCondition);
         }
       });
-      
+
       // 只有在有筛选结果时才添加allOf
       if (filteredAllOf.length > 0) {
         filteredResult.allOf = filteredAllOf;
@@ -560,19 +670,19 @@ class AiService extends Service {
         }
       } else if (key === 'allOf' && Array.isArray(value)) {
         // 递归处理嵌套的allOf
-        const filteredNested = value.map(nestedCondition => 
+        const filteredNested = value.map(nestedCondition =>
           this.filterAllOfCondition(nestedCondition, itemsArray)
         ).filter(result => result && this.hasRelevantContent(result));
-        
+
         if (filteredNested.length > 0) {
           filtered.allOf = filteredNested;
         }
       } else if (key === 'anyOf' && Array.isArray(value)) {
         // 递归处理anyOf
-        const filteredAnyOf = value.map(nestedCondition => 
+        const filteredAnyOf = value.map(nestedCondition =>
           this.filterAllOfCondition(nestedCondition, itemsArray)
         ).filter(result => result && this.hasRelevantContent(result));
-        
+
         if (filteredAnyOf.length > 0) {
           filtered.anyOf = filteredAnyOf;
         }

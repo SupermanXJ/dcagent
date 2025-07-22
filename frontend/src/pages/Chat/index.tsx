@@ -91,6 +91,7 @@ const Chat: React.FC = () => {
     doubao: [],
     kimi: [],
   });
+  const [enableStream, setEnableStream] = useState(false); // 流式输出开关，默认为否
 
   // UI状态
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -282,6 +283,7 @@ const Chat: React.FC = () => {
       formData.append('provider', provider);
       formData.append('model', model);
       formData.append('message', inputValue);
+      formData.append('stream', enableStream.toString()); // 根据用户选择启用/禁用流式响应
 
       // 构建历史消息，包含response_id信息
       const historyData = messages.map((msg) => ({
@@ -310,28 +312,97 @@ const Chat: React.FC = () => {
         }
       });
 
-      const response = await request('/api/chat/send', {
+      // 为流式输出创建一个空的助手消息，用于实时更新
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: '',
+        timestamp: Date.now(),
+      };
+      let currentMessages = newMessages;
+
+      if (enableStream) {
+        // 只有在流式输出模式下才预先创建空的助手消息
+        currentMessages = [...newMessages, assistantMessage];
+        updateCurrentSession(currentMessages);
+      }
+
+      // 使用fetch API以支持流式响应
+      // 在开发环境中需要使用完整的URL，因为fetch不会使用UmiJS的proxy配置
+      const apiUrl =
+        process.env.NODE_ENV === 'development'
+          ? 'http://localhost:7001/api/chat/send'
+          : '/api/chat/send';
+
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        data: formData,
+        body: formData,
       });
 
-      if (response.success) {
-        const assistantMessage: Message = {
-          role: 'assistant',
-          content: response.data.content,
-          timestamp: Date.now(),
-          ...(response.data.response_id && {
-            response_id: response.data.response_id,
-          }),
-        };
-        const finalMessages = [...newMessages, assistantMessage];
-        updateCurrentSession(finalMessages);
-        setFileList([]);
-      } else {
-        message.error(response.error || '发送失败');
+      if (!enableStream && !response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      if (enableStream) {
+        // 处理流式响应
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (reader) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') {
+                break;
+              }
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.content) {
+                  // 更新助手消息内容
+                  assistantMessage.content += parsed.content;
+                  currentMessages = [...newMessages, { ...assistantMessage }];
+                  updateCurrentSession(currentMessages);
+                }
+                if (parsed.usage) {
+                  // 处理usage信息
+                  console.log('Usage:', parsed.usage);
+                }
+                if (parsed.response_id) {
+                  // 更新response_id
+                  assistantMessage.response_id = parsed.response_id;
+                }
+              } catch (e) {
+                console.error('Error parsing SSE data:', e);
+              }
+            }
+          }
+        }
+      } else {
+        // 处理非流式响应
+        const result = await response.json();
+        if (result.success) {
+          assistantMessage.content = result.data.content;
+          if (result.data.response_id) {
+            assistantMessage.response_id = result.data.response_id;
+          }
+          const finalMessages = [...newMessages, assistantMessage];
+          updateCurrentSession(finalMessages);
+        } else {
+          throw new Error(result.error || '请求失败');
+        }
+      }
+
+      setFileList([]);
     } catch (error) {
       message.error('发送失败，请检查网络连接');
+      console.error('Chat error:', error);
     } finally {
       setLoading(false);
     }
@@ -586,7 +657,7 @@ const Chat: React.FC = () => {
       >
         {/* 头部配置区 */}
         <Card style={{ marginBottom: 16, flexShrink: 0 }}>
-          <Row gutter={16} align="middle">
+          <Row gutter={16} align="middle" style={{ marginBottom: 12 }}>
             <Col span={6}>
               <Title level={4} style={{ margin: 0 }}>
                 DC智能体
@@ -634,6 +705,26 @@ const Chat: React.FC = () => {
               </div>
             </Col>
             <Col span={6} style={{ textAlign: 'right' }}>
+              <Button onClick={handleClear} icon={<DeleteOutlined />}>
+                清空对话
+              </Button>
+            </Col>
+          </Row>
+          <Row gutter={16} align="middle">
+            <Col span={6}>
+              <Space>
+                <Text>流式输出:</Text>
+                <Select
+                  value={enableStream}
+                  onChange={setEnableStream}
+                  style={{ width: 80 }}
+                >
+                  <Option value={false}>否</Option>
+                  <Option value={true}>是</Option>
+                </Select>
+              </Space>
+            </Col>
+            <Col span={18}>
               <Space>
                 {/* 会话状态指示器 */}
                 {messages.length > 0 &&
@@ -647,9 +738,14 @@ const Chat: React.FC = () => {
                       🔗 会话状态已连接
                     </Text>
                   )}
-                <Button onClick={handleClear} icon={<DeleteOutlined />}>
-                  清空对话
-                </Button>
+                {enableStream && (
+                  <Text
+                    type="secondary"
+                    style={{ fontSize: '12px', color: '#1890ff' }}
+                  >
+                    ⚡ 流式输出已启用
+                  </Text>
+                )}
               </Space>
             </Col>
           </Row>
@@ -666,11 +762,13 @@ const Chat: React.FC = () => {
             minHeight: 0,
             position: 'relative',
           }}
-          bodyStyle={{
-            padding: 0,
-            height: '100%',
-            display: 'flex',
-            flexDirection: 'column',
+          styles={{
+            body: {
+              padding: 0,
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+            },
           }}
         >
           <div
@@ -766,6 +864,63 @@ const Chat: React.FC = () => {
                           }}
                         >
                           {message.content}
+                          {/* 显示光标效果（用于正在生成的消息） */}
+                          {loading &&
+                            message.role === 'assistant' &&
+                            message === messages[messages.length - 1] &&
+                            message.content && (
+                              <span
+                                style={{
+                                  display: 'inline-block',
+                                  width: '8px',
+                                  height: '18px',
+                                  backgroundColor: '#1890ff',
+                                  marginLeft: '2px',
+                                  animation: 'blink 1s infinite',
+                                }}
+                              >
+                                <style>{`
+                                @keyframes blink {
+                                  0%, 50% { opacity: 1; }
+                                  51%, 100% { opacity: 0; }
+                                }
+                              `}</style>
+                              </span>
+                            )}
+                          {/* 显示打字指示器 */}
+                          {loading &&
+                            message.role === 'assistant' &&
+                            message === messages[messages.length - 1] &&
+                            !message.content && (
+                              <span
+                                style={{
+                                  color: '#999',
+                                  display: 'inline-block',
+                                }}
+                              >
+                                <style>{`
+                                @keyframes typing {
+                                  0% { opacity: 0.3; }
+                                  50% { opacity: 1; }
+                                  100% { opacity: 0.3; }
+                                }
+                                .typing-dot {
+                                  display: inline-block;
+                                  animation: typing 1.4s infinite;
+                                  margin: 0 2px;
+                                }
+                                .typing-dot:nth-child(2) {
+                                  animation-delay: 0.2s;
+                                }
+                                .typing-dot:nth-child(3) {
+                                  animation-delay: 0.4s;
+                                }
+                              `}</style>
+                                <span className="typing-dot">●</span>
+                                <span className="typing-dot">●</span>
+                                <span className="typing-dot">●</span>
+                              </span>
+                            )}
                         </div>
                       }
                     />

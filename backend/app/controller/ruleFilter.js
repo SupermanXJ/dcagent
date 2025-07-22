@@ -6,7 +6,7 @@ const fs = require('fs').promises;
 class RuleFilterController extends Controller {
   async filter() {
     const { ctx } = this;
-    
+
     try {
       // 获取上传的文件
       const file = ctx.request.files && ctx.request.files[0];
@@ -31,7 +31,7 @@ class RuleFilterController extends Controller {
       // 读取上传的文件内容
       const fileContent = await fs.readFile(file.filepath, 'utf-8');
       let rulesData;
-      
+
       try {
         rulesData = JSON.parse(fileContent);
       } catch (parseError) {
