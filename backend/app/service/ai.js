@@ -80,30 +80,44 @@ class AiService extends Service {
     });
   }
 
+  // 初始化DeepSeek客户端 - 使用OpenAI兼容模式
+  getDeepSeekClient() {
+    if (!this.config.ai.deepseek.apiKey) {
+      throw new Error('DeepSeek API key not configured');
+    }
+    return new OpenAI({
+      apiKey: this.config.ai.deepseek.apiKey,
+      baseURL: this.config.ai.deepseek.baseURL,
+    });
+  }
+
   async chat(options) {
-    const { provider, model, messages, files = [], previous_response_id, stream = false } = options;
+    const { provider, model, messages, files = [], previous_response_id, stream = false, deepThinking = false } = options;
 
     try {
       if (provider === 'openai') {
-        return await this.chatWithOpenAI(model, messages, files, previous_response_id, stream);
+        return await this.chatWithOpenAI(model, messages, files, previous_response_id, stream, deepThinking);
       }
       if (provider === 'claude') {
-        return await this.chatWithClaude(model, messages, files, stream);
+        return await this.chatWithClaude(model, messages, files, stream, deepThinking);
       }
       if (provider === 'gemini') {
-        return await this.chatWithGemini(model, messages, files, stream);
+        return await this.chatWithGemini(model, messages, files, stream, deepThinking);
       }
       if (provider === 'zhipu') {
-        return await this.chatWithZhipu(model, messages, files, stream);
+        return await this.chatWithZhipu(model, messages, files, stream, deepThinking);
       }
       if (provider === 'qwen') {
-        return await this.chatWithQwen(model, messages, files, stream);
+        return await this.chatWithQwen(model, messages, files, stream, deepThinking);
       }
       if (provider === 'doubao') {
-        return await this.chatWithDoubao(model, messages, files, stream);
+        return await this.chatWithDoubao(model, messages, files, stream, deepThinking);
       }
       if (provider === 'kimi') {
-        return await this.chatWithKimi(model, messages, files, stream);
+        return await this.chatWithKimi(model, messages, files, stream, deepThinking);
+      }
+      if (provider === 'deepseek') {
+        return await this.chatWithDeepSeek(model, messages, files, stream, deepThinking);
       }
       throw new Error(`Unsupported AI provider: ${provider}`);
     } catch (error) {
@@ -112,7 +126,7 @@ class AiService extends Service {
     }
   }
 
-  async chatWithOpenAI(model = 'gpt-3.5-turbo', messages, files, previous_response_id, stream = false) {
+  async chatWithOpenAI(model = 'gpt-3.5-turbo', messages, files, previous_response_id, stream = false, deepThinking = false) {
     // 初始化OpenAI客户端
     const openai = this.getOpenAIClient();
 
@@ -137,6 +151,9 @@ class AiService extends Service {
           messages: processedMessages,
           temperature: 0.7,
           stream: true,
+          reasoning: {
+            effort: deepThinking ? 'high' : 'minimal',
+          },
           stream_options: {
             include_usage: true, // 在流式响应中包含usage信息
           },
@@ -160,6 +177,9 @@ class AiService extends Service {
           model,
           input,
           temperature: 0.7,
+          reasoning: {
+            effort: deepThinking ? 'high' : 'minimal',
+          }
         };
 
         // 如果有previous_response_id，添加到请求中
@@ -214,7 +234,7 @@ class AiService extends Service {
     }
   }
 
-  async chatWithClaude(model = 'claude-3-sonnet-20240229', messages, files, stream = false) {
+  async chatWithClaude(model = 'claude-3-sonnet-20240229', messages, files, stream = false, deepThinking = false) {
     // 初始化Claude客户端
     const anthropic = this.getClaudeClient();
 
@@ -231,6 +251,7 @@ class AiService extends Service {
         system: systemMessage ? systemMessage.content : undefined,
         messages: userMessages,
         stream: true,
+        thinking: deepThinking ? 'enabled' : 'disabled',
       });
 
       return {
@@ -244,6 +265,7 @@ class AiService extends Service {
       // max_tokens: 2000,
       system: systemMessage ? systemMessage.content : undefined,
       messages: userMessages,
+      thinking: deepThinking ? 'enabled' : 'disabled',
     });
 
     return {
@@ -255,7 +277,7 @@ class AiService extends Service {
     };
   }
 
-  async chatWithGemini(model = 'gemini-2.5-pro', messages, files, stream = false) {
+  async chatWithGemini(model = 'gemini-2.5-pro', messages, files, stream = false, deepThinking = false) {
     // 初始化Gemini客户端
     const genAI = this.getGeminiClient();
 
@@ -270,7 +292,7 @@ class AiService extends Service {
       const geminiMessages = this.convertMessagesToGeminiFormat(processedMessages);
 
       // 开始聊天会话
-      const chat = geminiModel.startChat({
+      let requestConfig = {
         history: geminiMessages.history,
         generationConfig: {
           temperature: 0.7,
@@ -278,7 +300,13 @@ class AiService extends Service {
           topP: 0.8,
           maxOutputTokens: 8192,
         },
-      });
+      }
+      if (!deepThinking) {
+        requestConfig.generationConfig.thinkingConfig = {
+          thinkingBudget: 0,
+        };
+      }
+      const chat = geminiModel.startChat(requestConfig);
 
       if (stream) {
         // 使用流式响应
@@ -311,7 +339,7 @@ class AiService extends Service {
     }
   }
 
-  async chatWithZhipu(model = 'glm-4', messages, files, stream = false) {
+  async chatWithZhipu(model = 'glm-4', messages, files, stream = false, deepThinking = false) {
     // 初始化智谱AI客户端
     const zhipuAI = this.getZhipuClient();
 
@@ -319,14 +347,20 @@ class AiService extends Service {
       // 处理文件内容
       const processedMessages = await this.processMessagesWithFiles(messages, files);
 
+      let requestConfig = {
+        model,
+        messages: processedMessages,
+        temperature: 0.7,
+        stream: false,
+      }
+      if (deepThinking) {
+        requestConfig.thinking = true;
+      }
+
       if (stream) {
-        // 智谱AI使用 createCompletions 方法，支持流式响应
-        const streamResponse = zhipuAI.createCompletions({
-          model,
-          messages: processedMessages,
-          temperature: 0.7,
-          stream: true,
-        });
+        // 智谱AI使用 createCompletions 方法，支持流式响应'
+        requestConfig.stream = true;
+        const streamResponse = zhipuAI.createCompletions(requestConfig);
 
         return {
           success: true,
@@ -335,12 +369,7 @@ class AiService extends Service {
       }
 
       // 智谱AI使用 createCompletions 方法
-      const response = await zhipuAI.createCompletions({
-        model,
-        messages: processedMessages,
-        temperature: 0.7,
-        stream: false,
-      });
+      const response = await zhipuAI.createCompletions(requestConfig);
 
       return {
         success: true,
@@ -356,7 +385,7 @@ class AiService extends Service {
     }
   }
 
-  async chatWithQwen(model = 'qwen-max', messages, files, stream = false) {
+  async chatWithQwen(model = 'qwen-max', messages, files, stream = false, deepThinking = false) {
     // 初始化通义千问客户端
     const qwenOpenAI = this.getQwenClient();
 
@@ -364,17 +393,24 @@ class AiService extends Service {
       // 处理文件内容
       const processedMessages = await this.processMessagesWithFiles(messages, files);
 
+      let requestConfig = {
+        model,
+        messages: processedMessages,
+        temperature: 0.7,
+        stream: false
+      }
+
+      if (model.includes('qwen3')) { 
+          requestConfig.enable_thinking = deepThinking;
+      }
+
       if (stream) {
+        requestConfig.stream = true;
+        requestConfig.stream_options = {
+          include_usage: true,
+        };
         // 使用OpenAI兼容模式调用通义千问，支持流式响应
-        const stream = await qwenOpenAI.chat.completions.create({
-          model,
-          messages: processedMessages,
-          temperature: 0.7,
-          stream: true,
-          stream_options: {
-            include_usage: true,
-          },
-        });
+        const stream = await qwenOpenAI.chat.completions.create(requestConfig);
 
         return {
           success: true,
@@ -383,12 +419,7 @@ class AiService extends Service {
       }
 
       // 使用OpenAI兼容模式调用通义千问
-      const completion = await qwenOpenAI.chat.completions.create({
-        model,
-        messages: processedMessages,
-        temperature: 0.7,
-        stream: false,
-      });
+      const completion = await qwenOpenAI.chat.completions.create(requestConfig);
 
       return {
         success: true,
@@ -404,7 +435,7 @@ class AiService extends Service {
     }
   }
 
-  async chatWithDoubao(model = 'doubao-pro-32k', messages, files, stream = false) {
+  async chatWithDoubao(model = 'doubao-pro-32k', messages, files, stream = false, deepThinking = false) {
     // 初始化豆包客户端
     const doubaoOpenAI = this.getDoubaoClient();
 
@@ -420,6 +451,9 @@ class AiService extends Service {
           temperature: 0.7,
           stream: true,
           max_tokens: 16384,
+          thinking: {
+            type: deepThinking ? 'enabled' : 'disabled',
+          },
           stream_options: {
             include_usage: true,
           },
@@ -438,6 +472,9 @@ class AiService extends Service {
         temperature: 0.7,
         stream: false,
         max_tokens: 16384,
+        thinking: {
+          type: deepThinking ? 'enabled' : 'disabled',
+        },
       });
 
       return {
@@ -454,7 +491,7 @@ class AiService extends Service {
     }
   }
 
-  async chatWithKimi(model = 'kimi-k2-0711-preview', messages, files, stream = false) {
+  async chatWithKimi(model = 'kimi-k2-0711-preview', messages, files, stream = false, deepThinking = false) {
     // 初始化Kimi客户端
     const kimiOpenAI = this.getKimiClient();
 
@@ -476,6 +513,9 @@ class AiService extends Service {
           stream_options: {
             include_usage: true,
           },
+          reasoning: {
+            effort: deepThinking ? 'high' : 'minimal',
+          },
         });
 
         return {
@@ -491,6 +531,9 @@ class AiService extends Service {
         temperature,
         stream: false,
         max_tokens: 128000,
+        reasoning: {
+          effort: deepThinking ? 'high' : 'minimal',
+        },
       });
 
       return {
@@ -503,6 +546,58 @@ class AiService extends Service {
       };
     } catch (error) {
       this.logger.error('Kimi chat error:', error);
+      throw error;
+    }
+  }
+
+  async chatWithDeepSeek(model = 'deepseek-chat', messages, files, stream = false, deepThinking = false) {
+    // 初始化DeepSeek客户端
+    const deepseekOpenAI = this.getDeepSeekClient();
+
+    try {
+      // 处理文件内容
+      const processedMessages = await this.processMessagesWithFiles(messages, files);
+
+      // 如果是深度思考模式且使用普通模型，切换到 reasoner 模型
+      const actualModel = deepThinking && model === 'deepseek-chat' ? 'deepseek-reasoner' : model;
+
+      if (stream) {
+        // 使用OpenAI兼容模式调用DeepSeek，支持流式响应
+        const stream = await deepseekOpenAI.chat.completions.create({
+          model: actualModel,
+          messages: processedMessages,
+          temperature: 0.7,
+          stream: true,
+          max_tokens: 32768,
+          stream_options: {
+            include_usage: true,
+          },
+        });
+
+        return {
+          success: true,
+          stream,
+        };
+      }
+
+      // 使用OpenAI兼容模式调用DeepSeek
+      const completion = await deepseekOpenAI.chat.completions.create({
+        model: actualModel,
+        messages: processedMessages,
+        temperature: 0.7,
+        stream: false,
+      });
+
+      return {
+        success: true,
+        data: {
+          content: completion.choices[0].message.content,
+          usage: completion.usage,
+          response_id: completion.id,
+        },
+      };
+    } catch (error) {
+      this.logger.error('DeepSeek chat error:', error);
       throw error;
     }
   }
@@ -751,7 +846,10 @@ class AiService extends Service {
   getAvailableModels() {
     return {
       openai: [
-        { value: 'gpt-4.1', label: 'GPT-4.1 (最新)' },
+        { value: 'gpt-5-2025-08-07', label: 'GPT-5 (最新)' },
+        { value: 'gpt-5-mini-2025-08-07', label: 'GPT-5 Mini' },
+        { value: 'gpt-5-nano-2025-08-07', label: 'GPT-5 Nano' },
+        { value: 'gpt-4.1', label: 'GPT-4.1' },
         { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano (最快)' },
         { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
         { value: 'o4-mini', label: 'o4-mini (推理模型)' },
@@ -815,6 +913,10 @@ class AiService extends Service {
       ],
       kimi: [
         { value: 'kimi-k2-0711-preview', label: 'Kimi K2 (最新开源智能体模型)' },
+      ],
+      deepseek: [
+        { value: 'deepseek-chat', label: 'DeepSeek-Chat (V3.1 非推理模式)' },
+        { value: 'deepseek-reasoner', label: 'DeepSeek-Reasoner (V3.1 推理模式)' },
       ],
     };
   }

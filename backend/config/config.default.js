@@ -68,6 +68,10 @@ module.exports = appInfo => {
       apiKey: process.env.KIMI_API_KEY || '',
       baseURL: 'https://api.moonshot.cn/v1',
     },
+    deepseek: {
+      apiKey: process.env.DEEPSEEK_API_KEY || '',
+      baseURL: 'https://api.deepseek.com',
+    },
   };
 
   // add your user config here
