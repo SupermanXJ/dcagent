@@ -14,9 +14,11 @@ class ChatController extends Controller {
       //   message: { type: 'string', required: true },
       //   history: { type: 'array', required: false },
       // });
-      const { provider, model, message, history = '[]', previous_response_id, stream: streamParam = 'false' } = ctx.request.body;
+      const { provider, model, message, history = '[]', previous_response_id, stream: streamParam = 'false', deepThinking: deepThinkingParam = 'false' } = ctx.request.body;
       // 正确解析stream参数（FormData中都是字符串）
       const stream = streamParam === 'true' || streamParam === true;
+      // 正确解析deepThinking参数（FormData中都是字符串）
+      const deepThinking = deepThinkingParam === 'true' || deepThinkingParam === true;
       const files = ctx.request.files || [];
 
       // 解析history JSON字符串
@@ -42,6 +44,7 @@ class ChatController extends Controller {
         files,
         previous_response_id, // 传递previous_response_id
         stream,
+        deepThinking, // 传递深度思考参数
       });
 
       if (stream && result.stream) {
@@ -52,7 +55,7 @@ class ChatController extends Controller {
         ctx.set('X-Accel-Buffering', 'no'); // 禁用Nginx缓冲
 
         // 根据不同的provider处理流
-        if (provider === 'openai' || provider === 'qwen' || provider === 'doubao' || provider === 'kimi') {
+        if (provider === 'openai' || provider === 'qwen' || provider === 'doubao' || provider === 'kimi' || provider === 'deepseek') {
           // OpenAI兼容的流格式
           for await (const chunk of result.stream) {
             const delta = chunk.choices[0]?.delta?.content || '';

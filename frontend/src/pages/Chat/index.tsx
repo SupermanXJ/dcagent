@@ -44,6 +44,7 @@ interface Message {
   timestamp: number;
   response_id?: string; // OpenAI响应ID，用于会话状态管理
   usage?: Usage; // token用量信息
+  generation_time?: number; // 生成时间（毫秒）
 }
 
 interface ChatSession {
@@ -59,7 +60,8 @@ interface ChatSession {
     | 'zhipu'
     | 'qwen'
     | 'doubao'
-    | 'kimi';
+    | 'kimi'
+    | 'deepseek';
   model: string;
 }
 
@@ -71,6 +73,7 @@ interface Models {
   qwen: Array<{ value: string; label: string }>;
   doubao: Array<{ value: string; label: string }>;
   kimi: Array<{ value: string; label: string }>;
+  deepseek: Array<{ value: string; label: string }>;
 }
 
 const Chat: React.FC = () => {
@@ -86,7 +89,7 @@ const Chat: React.FC = () => {
 
   // AI配置状态
   const [provider, setProvider] = useState<
-    'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao' | 'kimi'
+    'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao' | 'kimi' | 'deepseek'
   >('openai');
   const [model, setModel] = useState('gpt-4.1');
   const [models, setModels] = useState<Models>({
@@ -97,8 +100,10 @@ const Chat: React.FC = () => {
     qwen: [],
     doubao: [],
     kimi: [],
+    deepseek: [],
   });
   const [enableStream, setEnableStream] = useState(false); // 流式输出开关，默认为否
+  const [enableDeepThinking, setEnableDeepThinking] = useState(false); // 深度思考开关，默认为否
 
   // UI状态
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -291,6 +296,7 @@ const Chat: React.FC = () => {
       formData.append('model', model);
       formData.append('message', inputValue);
       formData.append('stream', enableStream.toString()); // 根据用户选择启用/禁用流式响应
+      formData.append('deepThinking', enableDeepThinking.toString()); // 根据用户选择启用/禁用深度思考
 
       // 构建历史消息，包含response_id信息
       const historyData = messages.map((msg) => ({
@@ -340,6 +346,7 @@ const Chat: React.FC = () => {
           ? 'http://localhost:7001/api/chat/send'
           : '/api/chat/send';
 
+      const startTime = performance.now();
       const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData,
@@ -397,7 +404,12 @@ const Chat: React.FC = () => {
         // 处理非流式响应
         const result = await response.json();
         if (result.success) {
+          // 计算生成时间
+          const generationTime = performance.now() - startTime;
+          console.log('generationTime', generationTime);
+          
           assistantMessage.content = result.data.content;
+          assistantMessage.generation_time = generationTime;
           if (result.data.response_id) {
             assistantMessage.response_id = result.data.response_id;
           }
@@ -445,7 +457,8 @@ const Chat: React.FC = () => {
       | 'zhipu'
       | 'qwen'
       | 'doubao'
-      | 'kimi',
+      | 'kimi'
+      | 'deepseek',
   ) => {
     setProvider(newProvider);
     const availableModels = models[newProvider];
@@ -487,6 +500,14 @@ const Chat: React.FC = () => {
         );
         setModel(
           preferredModel ? 'kimi-k2-0711-preview' : availableModels[0].value,
+        );
+      } else if (newProvider === 'deepseek') {
+        // 对于DeepSeek，优先选择deepseek-chat模型
+        const preferredModel = availableModels.find(
+          (m) => m.value === 'deepseek-chat',
+        );
+        setModel(
+          preferredModel ? 'deepseek-chat' : availableModels[0].value,
         );
       } else {
         setModel(availableModels[0].value);
@@ -734,6 +755,7 @@ const Chat: React.FC = () => {
                   <Option value="qwen">Qwen</Option>
                   <Option value="doubao">豆包</Option>
                   <Option value="kimi">Kimi</Option>
+                  <Option value="deepseek">DeepSeek</Option>
                 </Select>
               </div>
 
@@ -784,6 +806,28 @@ const Chat: React.FC = () => {
                   <Option value={true}>是</Option>
                 </Select>
               </div>
+
+              {/* 深度思考开关 */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.8)',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid rgba(24, 144, 255, 0.2)'
+              }}>
+                <Text strong style={{ color: '#1890ff', fontSize: '14px' }}>深度思考:</Text>
+                <Select
+                  value={enableDeepThinking}
+                  onChange={setEnableDeepThinking}
+                  style={{ width: 70 }}
+                  size="middle"
+                >
+                  <Option value={false}>否</Option>
+                  <Option value={true}>是</Option>
+                </Select>
+              </div>
             </div>
 
             {/* 操作按钮区域 */}
@@ -819,7 +863,8 @@ const Chat: React.FC = () => {
                   provider === 'zhipu' ||
                   provider === 'qwen' ||
                   provider === 'doubao' ||
-                  provider === 'kimi') && (
+                  provider === 'kimi' ||
+                  provider === 'deepseek') && (
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -872,6 +917,33 @@ const Chat: React.FC = () => {
                     @keyframes flash {
                       0%, 50% { opacity: 1; }
                       51%, 100% { opacity: 0.3; }
+                    }
+                  `}</style>
+                </div>
+              )}
+
+              {/* 深度思考指示器 */}
+              {enableDeepThinking && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(114, 46, 209, 0.1)',
+                  padding: '4px 8px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(114, 46, 209, 0.3)'
+                }}>
+                  <span style={{ 
+                    fontSize: '12px',
+                    animation: 'think 2s infinite'
+                  }}>🧠</span>
+                  <Text style={{ fontSize: '12px', color: '#722ed1', fontWeight: 500 }}>
+                    深度思考已启用
+                  </Text>
+                  <style>{`
+                    @keyframes think {
+                      0%, 100% { transform: scale(1); }
+                      50% { transform: scale(1.1); }
                     }
                   `}</style>
                 </div>
@@ -1010,6 +1082,16 @@ const Chat: React.FC = () => {
                                   message.usage.completion_tokens ||
                                   0}{' '}
                                 tokens
+                                {message.generation_time && (
+                                  <span
+                                    style={{
+                                      marginLeft: 8,
+                                      color: '#1890ff',
+                                    }}
+                                  >
+                                    ⏱️ {(message.generation_time / 1000).toFixed(2)}s
+                                  </span>
+                                )}
                               </span>
                             )}
                           </Text>
