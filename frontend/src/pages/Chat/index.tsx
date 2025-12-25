@@ -1202,6 +1202,7 @@ const Chat: React.FC = () => {
               beforeUpload={() => false}
               multiple
               showUploadList={{ showRemoveIcon: true }}
+              accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.txt,.pdf,.docx,.doc,.md,.json,.csv"
             >
               <Button icon={<PaperClipOutlined />}>上传文件</Button>
             </Upload>

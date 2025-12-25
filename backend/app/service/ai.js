@@ -285,11 +285,29 @@ class AiService extends Service {
       // 获取模型实例
       const geminiModel = genAI.getGenerativeModel({ model });
 
-      // 处理文件内容
-      const processedMessages = await this.processMessagesWithFiles(messages, files);
+      // 处理文件内容（文本文件）
+      const { textFiles, imageFiles } = this.splitFiles(files);
+      const processedMessages = await this.processMessagesWithFiles(messages, textFiles);
 
       // 将消息格式转换为Gemini格式
       const geminiMessages = this.convertMessagesToGeminiFormat(processedMessages);
+
+      // 追加图片到当前用户prompt
+      const imageParts = await this.buildGeminiImageParts(imageFiles);
+      const imageFilenames = imageFiles.map(file => file.filename).filter(Boolean);
+      const imageNameText = imageFilenames.length > 0
+        ? `图片文件名: ${imageFilenames.join(', ')}`
+        : '';
+      const promptParts = [];
+      if (geminiMessages.prompt) {
+        promptParts.push({ text: geminiMessages.prompt });
+      } else if (imageParts.length > 0) {
+        promptParts.push({ text: '请描述图片内容。' });
+      }
+      if (imageNameText) {
+        promptParts.push({ text: imageNameText });
+      }
+      promptParts.push(...imageParts);
 
       // 开始聊天会话
       let requestConfig = {
@@ -310,7 +328,7 @@ class AiService extends Service {
 
       if (stream) {
         // 使用流式响应
-        const result = await chat.sendMessageStream(geminiMessages.prompt);
+        const result = await chat.sendMessageStream(promptParts);
         return {
           success: true,
           stream: result.stream,
@@ -318,7 +336,7 @@ class AiService extends Service {
       }
 
       // 发送消息
-      const result = await chat.sendMessage(geminiMessages.prompt);
+      const result = await chat.sendMessage(promptParts);
       const response = await result.response;
 
       return {
@@ -390,12 +408,14 @@ class AiService extends Service {
     const qwenOpenAI = this.getQwenClient();
 
     try {
-      // 处理文件内容
-      const processedMessages = await this.processMessagesWithFiles(messages, files);
+      // 处理文件内容（文本文件）
+      const { textFiles, imageFiles } = this.splitFiles(files);
+      const processedMessages = await this.processMessagesWithFiles(messages, textFiles);
+      const qwenMessages = await this.injectImagePartsForOpenAI(processedMessages, imageFiles);
 
       let requestConfig = {
         model,
-        messages: processedMessages,
+        messages: qwenMessages,
         temperature: 0.7,
         stream: false
       }
@@ -629,6 +649,127 @@ class AiService extends Service {
     }
 
     return { history, prompt };
+  }
+
+  splitFiles(files) {
+    const imageFiles = [];
+    const textFiles = [];
+    if (!files || files.length === 0) {
+      return { imageFiles, textFiles };
+    }
+    for (const file of files) {
+      if (this.isImageFile(file)) {
+        imageFiles.push(file);
+      } else {
+        textFiles.push(file);
+      }
+    }
+    return { imageFiles, textFiles };
+  }
+
+  isImageFile(file) {
+    const filename = (file && file.filename) || '';
+    const mime = (file && file.mime) || '';
+    const lower = filename.toLowerCase();
+    if (mime.startsWith('image/')) {
+      return true;
+    }
+    return lower.endsWith('.png') ||
+      lower.endsWith('.jpg') ||
+      lower.endsWith('.jpeg') ||
+      lower.endsWith('.webp') ||
+      lower.endsWith('.gif') ||
+      lower.endsWith('.bmp');
+  }
+
+  getImageMimeType(file) {
+    if (file && file.mime && file.mime.startsWith('image/')) {
+      return file.mime;
+    }
+    const filename = (file && file.filename) || '';
+    const lower = filename.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    if (lower.endsWith('.gif')) return 'image/gif';
+    if (lower.endsWith('.bmp')) return 'image/bmp';
+    return 'application/octet-stream';
+  }
+
+  async buildGeminiImageParts(files) {
+    if (!files || files.length === 0) {
+      return [];
+    }
+    const fs = require('fs').promises;
+    const parts = [];
+    for (const file of files) {
+      try {
+        const buffer = await fs.readFile(file.filepath);
+        const mimeType = this.getImageMimeType(file);
+        parts.push({
+          inlineData: {
+            data: buffer.toString('base64'),
+            mimeType,
+          },
+        });
+      } catch (error) {
+        this.logger.error(`Error reading image file ${file.filename}:`, error);
+      }
+    }
+    return parts;
+  }
+
+  async injectImagePartsForOpenAI(messages, files) {
+    if (!files || files.length === 0) {
+      return messages;
+    }
+    const fs = require('fs').promises;
+    const imageParts = [];
+    const imageNames = [];
+    for (const file of files) {
+      try {
+        const buffer = await fs.readFile(file.filepath);
+        const mimeType = this.getImageMimeType(file);
+        const base64 = buffer.toString('base64');
+        imageParts.push({
+          type: 'image_url',
+          image_url: {
+            url: `data:${mimeType};base64,${base64}`,
+          },
+        });
+        if (file.filename) {
+          imageNames.push(file.filename);
+        }
+      } catch (error) {
+        this.logger.error(`Error reading image file ${file.filename}:`, error);
+      }
+    }
+
+    if (imageParts.length === 0) {
+      return messages;
+    }
+
+    const cloned = messages.map(msg => ({ ...msg }));
+    const lastUserIndex = cloned.map(msg => msg.role).lastIndexOf('user');
+    if (lastUserIndex === -1) {
+      return cloned;
+    }
+
+    const baseText = typeof cloned[lastUserIndex].content === 'string'
+      ? cloned[lastUserIndex].content
+      : '';
+    const contentParts = [];
+    if (baseText && baseText.trim()) {
+      contentParts.push({ type: 'text', text: baseText });
+    } else {
+      contentParts.push({ type: 'text', text: '请描述图片内容。' });
+    }
+    if (imageNames.length > 0) {
+      contentParts.push({ type: 'text', text: `图片文件名: ${imageNames.join(', ')}` });
+    }
+    contentParts.push(...imageParts);
+    cloned[lastUserIndex].content = contentParts;
+    return cloned;
   }
 
   async processMessagesWithFiles(messages, files) {
@@ -904,6 +1045,7 @@ class AiService extends Service {
         { value: 'qwen-plus', label: 'Qwen-Plus (均衡性价比)' },
         { value: 'qwen-turbo', label: 'Qwen-Turbo (最快最便宜)' },
         { value: 'qwen-long', label: 'Qwen-Long (长上下文)' },
+        { value: 'qwen-vl-plus', label: 'Qwen-VL-Plus (多模态视觉)' },
         { value: 'qwen-vl-max', label: 'Qwen-VL-Max (多模态视觉)' },
         { value: 'qwen-coder-plus', label: 'Qwen-Coder-Plus (代码专用)' },
         { value: 'qwen-math-plus', label: 'Qwen-Math-Plus (数学专用)' },
