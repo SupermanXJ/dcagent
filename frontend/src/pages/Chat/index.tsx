@@ -79,6 +79,7 @@ interface ChatSession {
     | 'kimi'
     | 'deepseek';
   model: string;
+  contextCurrentOnly?: boolean;
 }
 
 interface Models {
@@ -110,7 +111,7 @@ const Chat: React.FC = () => {
     'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao' | 'kimi' | 'deepseek'
   >('openai');
   const [model, setModel] = useState('gpt-4.1');
-  const [convertToWebp, setConvertToWebp] = useState(false);
+  const [convertToWebp, setConvertToWebp] = useState(true);
   const [models, setModels] = useState<Models>({
     openai: [],
     claude: [],
@@ -123,6 +124,7 @@ const Chat: React.FC = () => {
   });
   const [enableStream, setEnableStream] = useState(false); // 流式输出开关，默认为否
   const [enableDeepThinking, setEnableDeepThinking] = useState(false); // 深度思考开关，默认为否
+  const [contextCurrentOnly, setContextCurrentOnly] = useState(false); // 上下文仅当前开关，默认为否
 
   // UI状态
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -160,6 +162,7 @@ const Chat: React.FC = () => {
         setMessages(latestSession.messages);
         setProvider(latestSession.provider);
         setModel(latestSession.model);
+        setContextCurrentOnly(latestSession.contextCurrentOnly ?? false);
       }
     }
   }, []);
@@ -202,6 +205,7 @@ const Chat: React.FC = () => {
       updatedAt: Date.now(),
       provider: 'openai',
       model: 'gpt-4.1',
+      contextCurrentOnly: false,
     };
 
     const updatedSessions = [newSession, ...chatSessions];
@@ -247,6 +251,7 @@ const Chat: React.FC = () => {
       setMessages(session.messages);
       setProvider(session.provider);
       setModel(session.model);
+      setContextCurrentOnly(session.contextCurrentOnly ?? false);
       setFileList([]);
     }
   };
@@ -271,6 +276,7 @@ const Chat: React.FC = () => {
         // 更新AI配置
         updatedSession.provider = provider;
         updatedSession.model = model;
+        updatedSession.contextCurrentOnly = contextCurrentOnly;
 
         return updatedSession;
       }
@@ -388,23 +394,27 @@ const Chat: React.FC = () => {
       formData.append('deepThinking', enableDeepThinking.toString()); // 根据用户选择启用/禁用深度思考
 
       // 构建历史消息，包含response_id信息
-      const historyData = messages.map((msg) => ({
-        role: msg.role,
-        content: msg.content,
-        ...(msg.response_id && { response_id: msg.response_id }),
-      }));
+      const historyData = contextCurrentOnly
+        ? []
+        : messages.map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+            ...(msg.response_id && { response_id: msg.response_id }),
+          }));
       formData.append('history', JSON.stringify(historyData));
 
       // 获取最后一个助手消息的response_id作为previous_response_id
-      const lastAssistantMessage = messages
-        .slice()
-        .reverse()
-        .find((msg) => msg.role === 'assistant');
-      if (lastAssistantMessage?.response_id && provider === 'openai') {
-        formData.append(
-          'previous_response_id',
-          lastAssistantMessage.response_id,
-        );
+      if (!contextCurrentOnly) {
+        const lastAssistantMessage = messages
+          .slice()
+          .reverse()
+          .find((msg) => msg.role === 'assistant');
+        if (lastAssistantMessage?.response_id && provider === 'openai') {
+          formData.append(
+            'previous_response_id',
+            lastAssistantMessage.response_id,
+          );
+        }
       }
 
       // 为流式输出创建一个空的助手消息，用于实时更新
@@ -595,6 +605,17 @@ const Chat: React.FC = () => {
         setModel(availableModels[0].value);
       }
     }
+  };
+
+  const handleContextCurrentOnlyChange = (nextValue: boolean) => {
+    setContextCurrentOnly(nextValue);
+    if (!currentSessionId) return;
+    const updatedSessions = chatSessions.map((session) =>
+      session.id === currentSessionId
+        ? { ...session, contextCurrentOnly: nextValue, updatedAt: Date.now() }
+        : session,
+    );
+    saveSessions(updatedSessions);
   };
 
   // 滚动到底部
@@ -960,6 +981,28 @@ const Chat: React.FC = () => {
                       {m.label}
                     </Option>
                   ))}
+                </Select>
+              </div>
+
+              {/* 上下文仅当前开关 */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.8)',
+                padding: '8px 12px',
+                borderRadius: '8px',
+                border: '1px solid rgba(24, 144, 255, 0.2)'
+              }}>
+                <Text strong style={{ color: '#1890ff', fontSize: '14px' }}>上下文仅当前:</Text>
+                <Select
+                  value={contextCurrentOnly}
+                  onChange={handleContextCurrentOnlyChange}
+                  style={{ width: 70 }}
+                  size="middle"
+                >
+                  <Option value={false}>否</Option>
+                  <Option value={true}>是</Option>
                 </Select>
               </div>
 
@@ -1487,10 +1530,28 @@ const Chat: React.FC = () => {
           {fileList.length > 0 && (
             <>
               <Divider style={{ margin: '12px 0' }} />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                  alignItems: 'center',
+                }}
+              >
                 <Text type="secondary">已选择文件:</Text>
                 {fileList.map((file) => (
-                  <div key={file.uid} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <div
+                    key={file.uid}
+                    style={{
+                      display: 'flex',
+                      gap: 6,
+                      alignItems: 'center',
+                      padding: '4px 8px',
+                      border: '1px solid #f0f0f0',
+                      borderRadius: 6,
+                      background: '#fafafa',
+                    }}
+                  >
                     <Text>{file.name}</Text>
                     {typeof file.size === 'number' && (
                       <Text type="secondary" style={{ fontSize: 12 }}>
