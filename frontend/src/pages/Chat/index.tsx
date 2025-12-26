@@ -1,6 +1,7 @@
 import {
   DeleteOutlined,
   DownOutlined,
+  EditOutlined,
   MessageOutlined,
   PaperClipOutlined,
   PlusOutlined,
@@ -13,13 +14,14 @@ import {
   Avatar,
   Button,
   Card,
+  Checkbox,
   Divider,
+  Image as AntdImage,
   Input,
   List,
   message,
   Modal,
   Select,
-  Space,
   Typography,
   Upload,
 } from 'antd';
@@ -38,6 +40,19 @@ interface Usage {
   completion_tokens?: number;
 }
 
+interface ChatAttachment {
+  uid: string;
+  name: string;
+  size: number;
+  type?: string;
+  previewUrl?: string;
+  originalName?: string;
+  originalSize?: number;
+  converted?: boolean;
+  convertedName?: string;
+  convertedSize?: number;
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -45,6 +60,7 @@ interface Message {
   response_id?: string; // OpenAI响应ID，用于会话状态管理
   usage?: Usage; // token用量信息
   generation_time?: number; // 生成时间（毫秒）
+  attachments?: ChatAttachment[];
 }
 
 interface ChatSession {
@@ -81,6 +97,8 @@ const Chat: React.FC = () => {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
 
   // 输入和交互状态
   const [inputValue, setInputValue] = useState('');
@@ -92,6 +110,7 @@ const Chat: React.FC = () => {
     'openai' | 'claude' | 'gemini' | 'zhipu' | 'qwen' | 'doubao' | 'kimi' | 'deepseek'
   >('openai');
   const [model, setModel] = useState('gpt-4.1');
+  const [convertToWebp, setConvertToWebp] = useState(false);
   const [models, setModels] = useState<Models>({
     openai: [],
     claude: [],
@@ -195,6 +214,31 @@ const Chat: React.FC = () => {
     setInputValue('');
   };
 
+  const beginRename = (session: ChatSession, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSessionId(session.id);
+    setEditingTitle(session.title);
+  };
+
+  const commitRename = () => {
+    if (!editingSessionId) return;
+    const trimmedTitle = editingTitle.trim();
+    const nextTitle = trimmedTitle || '新对话';
+    const updatedSessions = chatSessions.map((session) =>
+      session.id === editingSessionId
+        ? { ...session, title: nextTitle, updatedAt: Date.now() }
+        : session,
+    );
+    saveSessions(updatedSessions);
+    setEditingSessionId(null);
+    setEditingTitle('');
+  };
+
+  const cancelRename = () => {
+    setEditingSessionId(null);
+    setEditingTitle('');
+  };
+
   // 切换对话
   const switchToChat = (sessionId: string) => {
     const session = chatSessions.find((s) => s.id === sessionId);
@@ -279,19 +323,64 @@ const Chat: React.FC = () => {
       return;
     }
 
-    const userMessage: Message = {
-      role: 'user',
-      content: inputValue,
-      timestamp: Date.now(),
-    };
-
-    const newMessages = [...messages, userMessage];
-    updateCurrentSession(newMessages);
-    setInputValue('');
     setLoading(true);
 
     try {
+      const processedAttachments: ChatAttachment[] = [];
       const formData = new FormData();
+
+      // 处理文件（包含可选的WebP转换）
+      for (const file of fileList) {
+        if (!file.originFileObj) continue;
+        const originalFile = file.originFileObj as File;
+        let fileToSend: File = originalFile;
+        let previewTarget: File | undefined = originalFile;
+        let convertedInfo: Partial<ChatAttachment> = {};
+
+        if (convertToWebp && isImageFile(originalFile)) {
+          try {
+            const webpFile = await convertImageToWebp(originalFile);
+            fileToSend = webpFile;
+            previewTarget = webpFile;
+            convertedInfo = {
+              converted: true,
+              convertedName: webpFile.name,
+              convertedSize: webpFile.size,
+            };
+          } catch (err) {
+            console.error('WebP转换失败', err);
+            message.warning(`${originalFile.name} 转换WebP失败，将使用原图发送`);
+          }
+        }
+
+        const previewUrl = isImageFile(previewTarget)
+          ? URL.createObjectURL(previewTarget)
+          : undefined;
+
+        formData.append('files', fileToSend);
+        processedAttachments.push({
+          uid: file.uid,
+          name: fileToSend.name,
+          size: fileToSend.size,
+          type: fileToSend.type,
+          previewUrl,
+          originalName: originalFile.name,
+          originalSize: originalFile.size,
+          ...convertedInfo,
+        });
+      }
+
+      const userMessage: Message = {
+        role: 'user',
+        content: inputValue,
+        timestamp: Date.now(),
+        attachments: processedAttachments,
+      };
+
+      const newMessages = [...messages, userMessage];
+      updateCurrentSession(newMessages);
+      setInputValue('');
+
       formData.append('provider', provider);
       formData.append('model', model);
       formData.append('message', inputValue);
@@ -317,13 +406,6 @@ const Chat: React.FC = () => {
           lastAssistantMessage.response_id,
         );
       }
-
-      // 添加文件
-      fileList.forEach((file) => {
-        if (file.originFileObj) {
-          formData.append('files', file.originFileObj);
-        }
-      });
 
       // 为流式输出创建一个空的助手消息，用于实时更新
       const assistantMessage: Message = {
@@ -532,6 +614,66 @@ const Chat: React.FC = () => {
     setShowScrollButton(!isAtBottom);
   };
 
+  const formatFileSize = (size: number) => {
+    if (!size && size !== 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let index = 0;
+    let currentSize = size;
+    while (currentSize >= 1024 && index < units.length - 1) {
+      currentSize /= 1024;
+      index += 1;
+    }
+    return `${currentSize.toFixed(currentSize >= 10 || index === 0 ? 0 : 1)}${units[index]}`;
+  };
+
+  const isImageFile = (file?: File | Blob | null) => {
+    if (!file) return false;
+    return (file as File).type?.startsWith?.('image/');
+  };
+
+  const convertImageToWebp = (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new window.Image();
+      const objectUrl = URL.createObjectURL(file);
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          URL.revokeObjectURL(objectUrl);
+          reject(new Error('无法获取画布上下文'));
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        canvas.toBlob(
+          (blob) => {
+            URL.revokeObjectURL(objectUrl);
+            if (!blob) {
+              reject(new Error('WebP转换失败'));
+              return;
+            }
+            const webpFile = new File([blob], `${file.name.replace(/\.[^.]+$/, '')}.webp`, {
+              type: 'image/webp',
+              lastModified: Date.now(),
+            });
+            resolve(webpFile);
+          },
+          'image/webp',
+          0.8,
+        );
+      };
+
+      img.onerror = (err) => {
+        URL.revokeObjectURL(objectUrl);
+        reject(err);
+      };
+
+      img.src = objectUrl;
+    });
+  };
+
   return (
     <div
       style={{
@@ -638,22 +780,58 @@ const Chat: React.FC = () => {
                           marginRight: '8px',
                         }}
                       >
-                        {session.title}
+                        {editingSessionId === session.id ? (
+                          <Input
+                            size="small"
+                            autoFocus
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            onBlur={commitRename}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                commitRename();
+                              }
+                              if (e.key === 'Escape') {
+                                e.preventDefault();
+                                cancelRename();
+                              }
+                            }}
+                          />
+                        ) : (
+                          session.title
+                        )}
                       </Text>
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<DeleteOutlined />}
-                        onClick={(e) => deleteChat(session.id, e)}
-                        style={{
-                          opacity: 0.6,
-                          fontSize: '12px',
-                          width: '20px',
-                          height: '20px',
-                          minWidth: '20px',
-                        }}
-                        danger
-                      />
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<EditOutlined />}
+                          onClick={(e) => beginRename(session, e)}
+                          style={{
+                            opacity: 0.6,
+                            fontSize: '12px',
+                            width: '20px',
+                            height: '20px',
+                            minWidth: '20px',
+                          }}
+                        />
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={(e) => deleteChat(session.id, e)}
+                          style={{
+                            opacity: 0.6,
+                            fontSize: '12px',
+                            width: '20px',
+                            height: '20px',
+                            minWidth: '20px',
+                          }}
+                          danger
+                        />
+                      </div>
                     </div>
                     <div
                       style={{
@@ -1164,6 +1342,66 @@ const Chat: React.FC = () => {
                                 <span className="typing-dot">●</span>
                               </span>
                             )}
+                          {message.attachments && message.attachments.length > 0 && (
+                            <div
+                              style={{
+                                marginTop: 12,
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
+                                gap: 12,
+                              }}
+                            >
+                              {message.attachments.map((attachment) => (
+                                <div
+                                  key={attachment.uid}
+                                  style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 8,
+                                    padding: '10px',
+                                    border: '1px solid #f0f0f0',
+                                    borderRadius: 8,
+                                    background: '#fafafa',
+                                    minHeight: 150,
+                                  }}
+                                >
+                                  {attachment.previewUrl && (
+                                    <AntdImage
+                                      src={attachment.previewUrl}
+                                      alt={attachment.name}
+                                      width="100%"
+                                      style={{
+                                        borderRadius: 6,
+                                        objectFit: 'cover',
+                                        maxHeight: 160,
+                                      }}
+                                      preview={{ mask: '点击预览' }}
+                                    />
+                                  )}
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                    <Text strong ellipsis>
+                                      {attachment.converted
+                                        ? attachment.convertedName || attachment.name
+                                        : attachment.name}
+                                    </Text>
+                                    <Text type="secondary" style={{ fontSize: 12 }}>
+                                      {attachment.converted ? (
+                                        <>
+                                          原图: {attachment.originalName || attachment.name} (
+                                          {formatFileSize(attachment.originalSize || attachment.size)})
+                                          <br />
+                                          WebP: {attachment.convertedName || attachment.name} (
+                                          {formatFileSize(attachment.convertedSize || attachment.size)})
+                                        </>
+                                      ) : (
+                                        <>大小: {formatFileSize(attachment.size)}</>
+                                      )}
+                                    </Text>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       }
                     />
@@ -1195,17 +1433,32 @@ const Chat: React.FC = () => {
 
         {/* 输入区 */}
         <Card style={{ flexShrink: 0 }}>
-          <Space.Compact style={{ width: '100%' }}>
-            <Upload
-              fileList={fileList}
-              onChange={handleFileChange}
-              beforeUpload={() => false}
-              multiple
-              showUploadList={{ showRemoveIcon: true }}
-              accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.txt,.pdf,.docx,.doc,.md,.json,.csv"
-            >
-              <Button icon={<PaperClipOutlined />}>上传文件</Button>
-            </Upload>
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              alignItems: 'flex-start',
+              flexWrap: 'wrap',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+              <Upload
+                fileList={fileList}
+                onChange={handleFileChange}
+                beforeUpload={() => false}
+                multiple
+                showUploadList={false}
+                accept=".png,.jpg,.jpeg,.webp,.gif,.bmp,.txt,.pdf,.docx,.doc,.md,.json,.csv"
+              >
+                <Button icon={<PaperClipOutlined />}>上传文件</Button>
+              </Upload>
+              <Checkbox
+                checked={convertToWebp}
+                onChange={(e) => setConvertToWebp(e.target.checked)}
+              >
+                压缩为WebP
+              </Checkbox>
+            </div>
             <TextArea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
@@ -1217,7 +1470,7 @@ const Chat: React.FC = () => {
                   handleSend();
                 }
               }}
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 240 }}
             />
             <Button
               type="primary"
@@ -1225,21 +1478,48 @@ const Chat: React.FC = () => {
               onClick={handleSend}
               loading={loading}
               disabled={loading}
+              style={{ alignSelf: 'stretch' }}
             >
               发送
             </Button>
-          </Space.Compact>
+          </div>
 
           {fileList.length > 0 && (
             <>
               <Divider style={{ margin: '12px 0' }} />
-              <div>
-                <Text type="secondary">已选择文件: </Text>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <Text type="secondary">已选择文件:</Text>
                 {fileList.map((file) => (
-                  <Text key={file.uid} style={{ marginRight: 8 }}>
-                    {file.name}
-                  </Text>
+                  <div key={file.uid} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <Text>{file.name}</Text>
+                    {typeof file.size === 'number' && (
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        ({formatFileSize(file.size)})
+                      </Text>
+                    )}
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      onClick={() => {
+                        setFileList((prev) => prev.filter((item) => item.uid !== file.uid));
+                      }}
+                      style={{
+                        opacity: 0.6,
+                        fontSize: '12px',
+                        width: '20px',
+                        height: '20px',
+                        minWidth: '20px',
+                      }}
+                      danger
+                    />
+                  </div>
                 ))}
+                {convertToWebp && (
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    图片将优先压缩为 WebP 格式再发送
+                  </Text>
+                )}
               </div>
             </>
           )}
